@@ -1,0 +1,223 @@
+import { promises as fs } from 'fs';
+import path from 'path';
+import { open } from 'sqlite';
+import sqlite3 from 'sqlite3';
+
+// 数据库路径
+const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
+
+// 板块类型
+type Section = 'blog' | 'qa' | 'cases';
+
+// 发布设置类型
+interface PublishSettings {
+  section: Section;
+  scheduleEnabled: boolean;
+  scheduleTime: string; // HH:MM 格式
+  randomEnabled: boolean;
+  dailyLimit: number;
+  randomTargetTime?: string; // HH:MM 格式
+  randomTargetDate?: Date;
+}
+
+// 发布结果类型
+interface PublishResult {
+  section: Section;
+  published: number;
+  remainingPending: number;
+  message: string;
+}
+
+// 生成随机时间（HH:MM格式）
+function getRandomTimeThisMinute(): string {
+  const hours = Math.floor(Math.random() * 24).toString().padStart(2, '0');
+  const minutes = Math.floor(Math.random() * 60).toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+export async function GET() {
+  try {
+    // 获取当前时间（中国时区 UTC+8）
+    const now = new Date();
+    const utc8Offset = 8 * 60 * 60 * 1000;
+    const nowUtc8 = new Date(now.getTime() + utc8Offset);
+    const today = new Date(nowUtc8.toDateString());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const db = await open({
+      filename: dbPath,
+      driver: sqlite3.Database
+    });
+
+    // 读取所有板块的发布设置
+    const publishSettings = await db.all('SELECT * FROM PublishSettings');
+    
+    // 定义默认设置
+    const defaultSettings: Record<Section, PublishSettings> = {
+      blog: { section: 'blog', scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false, dailyLimit: 1 },
+      qa: { section: 'qa', scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false, dailyLimit: 1 },
+      cases: { section: 'cases', scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false, dailyLimit: 1 }
+    };
+    
+    // 合并数据库中的设置
+    publishSettings.forEach(setting => {
+      if (setting.section && defaultSettings[setting.section as Section]) {
+        defaultSettings[setting.section as Section] = {
+          ...defaultSettings[setting.section as Section],
+          scheduleEnabled: setting.scheduleEnabled || false,
+          scheduleTime: setting.scheduleTime || '08:00',
+          randomEnabled: setting.randomEnabled || false,
+          dailyLimit: setting.dailyLimit || 1,
+          randomTargetTime: setting.randomTargetTime,
+          randomTargetDate: setting.randomTargetDate ? new Date(setting.randomTargetDate) : undefined
+        };
+      }
+    });
+
+    const results: PublishResult[] = [];
+
+    // 对每个板块进行处理
+    for (const section of Object.keys(defaultSettings) as Section[]) {
+      const settings = defaultSettings[section];
+      let publishedCount = 0;
+      let remainingPending = 0;
+      let message = '';
+
+      // 统计今天已经自动发布的数量
+      const todayPublishedCount = await db.get(`
+        SELECT COUNT(*) as count FROM ${section}
+        WHERE status = 'published'
+        AND publishedAt >= ?
+        AND publishedAt < ?
+      `, [today, tomorrow]);
+
+      // 计算剩余可发布数
+      const remaining = settings.dailyLimit - (todayPublishedCount?.count || 0);
+      if (remaining <= 0) {
+        message = `已达到每日发布限制（${settings.dailyLimit}篇）`;
+        results.push({ section, published: 0, remainingPending: 0, message });
+        continue;
+      }
+
+      // 查询待发布列表
+      const pendingItems = await db.all(`
+        SELECT * FROM ${section}
+        WHERE status = 'pending'
+        AND (publishAt IS NULL OR publishAt <= ?)
+        ORDER BY createdAt ASC
+      `, [nowUtc8]);
+
+      remainingPending = pendingItems.length;
+
+      if (pendingItems.length === 0) {
+        message = '无待发布内容';
+        results.push({ section, published: 0, remainingPending, message });
+        continue;
+      }
+
+      // 检查是否需要定时发布
+      const currentTimeStr = nowUtc8.toTimeString().substring(0, 5); // HH:MM 格式
+      let isScheduledPublish = false;
+
+      if (settings.scheduleEnabled && currentTimeStr >= settings.scheduleTime) {
+        // 执行定时发布
+        isScheduledPublish = true;
+        const publishItems = pendingItems.slice(0, remaining);
+        const itemIds = publishItems.map(item => item.id);
+
+        if (itemIds.length > 0) {
+          await db.run(`
+            UPDATE ${section}
+            SET status = 'published', publishedAt = ?
+            WHERE id IN (${itemIds.map(() => '?').join(',')})
+          `, [nowUtc8, ...itemIds]);
+
+          publishedCount = itemIds.length;
+          remainingPending = pendingItems.length - publishedCount;
+          message = `定时发布 ${publishedCount} 篇`;
+        }
+      }
+
+      // 如果定时发布未触发，检查是否需要随机发布
+      if (!isScheduledPublish && settings.randomEnabled) {
+        // 检查今天是否已经随机发布过
+        const todayRandomLog = await db.get(`
+          SELECT * FROM RandomPublishLog
+          WHERE section = ?
+          AND date = ?
+        `, [section, today]);
+
+        if (!todayRandomLog) {
+          // 检查是否需要生成今天的随机目标时间
+          let randomTargetTime = settings.randomTargetTime;
+          let randomTargetDate = settings.randomTargetDate;
+
+          // 如果没有随机目标时间，或者目标时间不是今天，则生成新的
+          if (!randomTargetTime || !randomTargetDate || randomTargetDate.toDateString() !== today.toDateString()) {
+            randomTargetTime = getRandomTimeThisMinute();
+            randomTargetDate = today;
+
+            // 更新数据库中的随机目标时间
+            await db.run(`
+              UPDATE PublishSettings
+              SET randomTargetTime = ?,
+                  randomTargetDate = ?
+              WHERE section = ?
+            `, [randomTargetTime, randomTargetDate, section]);
+          }
+
+          // 检查当前时间是否达到随机目标时间
+          if (currentTimeStr >= randomTargetTime) {
+            // 执行随机发布
+            const shuffledItems = [...pendingItems].sort(() => Math.random() - 0.5);
+            const publishItems = shuffledItems.slice(0, remaining);
+            const itemIds = publishItems.map(item => item.id);
+
+            if (itemIds.length > 0) {
+              // 更新文章状态
+              await db.run(`
+                UPDATE ${section}
+                SET status = 'published', publishedAt = ?
+                WHERE id IN (${itemIds.map(() => '?').join(',')})
+              `, [nowUtc8, ...itemIds]);
+
+              // 记录随机发布日志
+              await db.run(`
+                INSERT INTO RandomPublishLog (section, date, publishedCount)
+                VALUES (?, ?, ?)
+              `, [section, today, itemIds.length]);
+
+              publishedCount = itemIds.length;
+              remainingPending = pendingItems.length - publishedCount;
+              message = `随机发布 ${publishedCount} 篇`;
+            }
+          } else {
+            message = `随机发布未到时间（目标时间：${randomTargetTime}）`;
+          }
+        } else {
+          message = '今天已经随机发布过';
+        }
+      }
+
+      results.push({ section, published: publishedCount, remainingPending, message });
+    }
+
+    await db.close();
+
+    return new Response(JSON.stringify({
+      success: true,
+      results,
+      timestamp: nowUtc8.toISOString()
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('自动发布失败:', error);
+    return new Response(JSON.stringify({ error: '自动发布失败' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
