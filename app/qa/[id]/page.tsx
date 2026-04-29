@@ -44,7 +44,7 @@ export default function QADetailPage() {
                   博客教程
                 </a>
                 <a href="/cases" className="text-white hover:text-blue-200">
-                  客户案例
+                  客户方案
                 </a>
                 <a href="/qa" className="text-white hover:text-blue-200 font-medium border-b-2 border-white pb-1">
                   行业问答
@@ -98,7 +98,7 @@ export default function QADetailPage() {
                   博客教程
                 </a>
                 <a href="/cases" className="text-white hover:text-blue-200">
-                  客户案例
+                  客户方案
                 </a>
                 <a href="/qa" className="text-white hover:text-blue-200 font-medium border-b-2 border-white pb-1">
                   行业问答
@@ -189,7 +189,7 @@ export default function QADetailPage() {
                 博客教程
               </a>
               <a href="/cases" className="text-white hover:text-blue-200">
-                客户案例
+                客户方案
               </a>
               <a href="/qa" className="text-white hover:text-blue-200 font-medium border-b-2 border-white pb-1">
                 行业问答

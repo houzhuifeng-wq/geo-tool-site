@@ -212,7 +212,7 @@ export default function PublishSettingsPage() {
                 href="/admin/cases"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
-                案例管理
+                方案管理
               </a>
               <a
                 href="/admin/qa"
@@ -390,9 +390,9 @@ export default function PublishSettingsPage() {
               </div>
             </div>
 
-            {/* 案例设置 */}
+            {/* 方案设置 */}
             <div className="mb-6 p-4 border border-gray-200 rounded-md">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">案例设置</h2>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">方案设置</h2>
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">发布方式</label>

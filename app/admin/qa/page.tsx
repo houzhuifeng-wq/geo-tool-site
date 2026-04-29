@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateAIContent } from '@/lib/aiClient';
+import { checkDuplicate, isDuplicateCheckEnabled } from '@/lib/duplicateChecker';
 
 type QA = {
   id: string;
@@ -11,11 +12,13 @@ type QA = {
   date: string;
   category: string;
   status?: 'published' | 'pending';
+  similarTitles?: string[];
   [key: string]: any; // 保留其他字段
 };
 
 export default function QAManagementPage() {
   const [qas, setQAs] = useState<QA[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newQA, setNewQA] = useState<Partial<QA>>({
     question: '',
@@ -25,6 +28,8 @@ export default function QAManagementPage() {
   const [activeTab, setActiveTab] = useState<'pending' | 'published'>('published');
   const [editingQA, setEditingQA] = useState<QA | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showSimilarModal, setShowSimilarModal] = useState(false);
+  const [currentSimilarQA, setCurrentSimilarQA] = useState<QA | null>(null);
   
   // AI配置状态
   const [aiEnabled, setAiEnabled] = useState<boolean>(false);
@@ -45,8 +50,17 @@ export default function QAManagementPage() {
   const [scheduleEnabled, setScheduleEnabled] = useState<boolean>(false);
   const [scheduleTime, setScheduleTime] = useState<string>('08:00');
   const [randomEnabled, setRandomEnabled] = useState<boolean>(false);
+  const [dailyLimit, setDailyLimit] = useState<number>(1);
   
   const [loading, setLoading] = useState<boolean>(false);
+
+  // 在客户端挂载后读取localStorage中的loading状态
+  // 但如果页面重新加载，之前的请求肯定已经中断，所以重置为false
+  useEffect(() => {
+    // 页面加载时重置loading状态（之前的请求已经中断）
+    localStorage.setItem('qa_loading', 'false');
+    setLoading(false);
+  }, []);
   const [aiSuccess, setAiSuccess] = useState<boolean>(false);
   
   const router = useRouter();
@@ -71,17 +85,26 @@ export default function QAManagementPage() {
 
     // 加载模板数组
     const savedTemplates = localStorage.getItem('qa_templates');
+    let parsedTemplates: string[] = [];
     if (savedTemplates) {
-      setTemplates(JSON.parse(savedTemplates));
-    } else {
-      // 初始化默认模板
+      try {
+        parsedTemplates = JSON.parse(savedTemplates);
+      } catch {
+        parsedTemplates = [];
+      }
+    }
+    
+    // 如果模板数组为空或无效，初始化默认模板
+    if (!parsedTemplates || parsedTemplates.length === 0) {
       const defaultTemplates = [
-        "以问答形式写一篇 300 字内容：模拟一个 GEO 客户提问（如'我的网站为什么没有咨询？'），然后由专家回答。回答要口语化、去 AI 味，给出 2-3 条具体建议。文中自然出现'侯客有道GEO团队'和'服务热线：13953631472'。",
-        "生成一篇 300 字的'常见误区'型问答：标题为'做 GEO 优化的 3 个常见误区'，以一问一答的方式写（问题短，回答详细）。回答中要融入'侯客有道GEO团队'和'服务热线：13953631472'。语气真实，像真实客户在请教。",
-        "写一篇 300 字的'对比式'问答：问题例如'自己学 SEO 和找 GEO 团队哪个划算？'，回答中分析两者利弊，最后建议选择专业团队，并自然植入'侯客有道GEO团队'和'服务热线：13953631472'。"
+        '深入思考GEO客户的需求，自动生成问答文章。标题要吸睛观点，文章要去AI味，用口语化表达，像真实客户提问和专家解答，不要用生硬的套话。每篇文章都要合理置入：侠客有道GEO团队，服务热线：13953631472。字数控制300字左右。',
+        '自选一个GEO优化相关的常见问题作为主题，生成一篇专业问答文章。内容要实用、易懂，包含具体的解决方案。合理置入：侠客有道GEO团队，服务热线：13953631472。字数控制在300字左右。',
+        '创建一篇关于网站检测或本地搜索优化的问答文章。要求问题真实常见，回答专业详实。合理置入：侠客有道GEO团队，服务热线：13953631472。字数控制在300字左右。'
       ];
       setTemplates(defaultTemplates);
       localStorage.setItem('qa_templates', JSON.stringify(defaultTemplates));
+    } else {
+      setTemplates(parsedTemplates);
     }
 
     // 加载随机模板开关状态
@@ -122,6 +145,13 @@ export default function QAManagementPage() {
         ...qa,
         status: qa.status || 'published' // 默认已发布
       }));
+      // 按发布时间排序，最新的在最前面
+      // 优先使用publishedAt，否则使用date字段
+      qasWithStatus.sort((a, b) => {
+        const dateA = a.publishedAt ? new Date(a.publishedAt) : new Date(a.date);
+        const dateB = b.publishedAt ? new Date(b.publishedAt) : new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+      });
       setQAs(qasWithStatus);
     } else {
       // 尝试从旧的qas key加载数据
@@ -132,6 +162,13 @@ export default function QAManagementPage() {
           ...qa,
           status: 'published' // 默认已发布
         }));
+        // 按发布时间排序，最新的在最前面
+        // 优先使用publishedAt，否则使用date字段
+        qasWithStatus.sort((a, b) => {
+          const dateA = a.publishedAt ? new Date(a.publishedAt) : new Date(a.date);
+          const dateB = b.publishedAt ? new Date(b.publishedAt) : new Date(b.date);
+          return dateB.getTime() - dateA.getTime();
+        });
         setQAs(qasWithStatus);
         // 保存到新的key
         localStorage.setItem('qaItems', JSON.stringify(qasWithStatus));
@@ -287,11 +324,12 @@ if (typeof window !== 'undefined') {
         id: Date.now().toString(),
         question: newQA.question!,
         answer: newQA.answer!,
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
         category: newQA.category!,
         status: 'published',
       };
-      const updatedQAs = [...qas, qa];
+      // 添加到列表开头（最新的在最前面）
+      const updatedQAs = [qa, ...qas];
       setQAs(updatedQAs);
       localStorage.setItem('qaItems', JSON.stringify(updatedQAs));
       setNewQA({ question: '', answer: '', category: '' });
@@ -327,6 +365,21 @@ if (typeof window !== 'undefined') {
     localStorage.setItem('qaItems', JSON.stringify(updatedQAs));
   };
 
+  // 强制发布（跳过查重）
+  const handleForcePublishQA = (id: string) => {
+    const updatedQAs = qas.map(qa => 
+      qa.id === id ? { ...qa, status: 'published' as const, similarTitles: undefined } : qa
+    );
+    setQAs(updatedQAs);
+    localStorage.setItem('qaItems', JSON.stringify(updatedQAs));
+  };
+
+  // 处理查看相似内容
+  const handleViewSimilarQA = (qa: QA) => {
+    setCurrentSimilarQA(qa);
+    setShowSimilarModal(true);
+  };
+
   // 处理下架问答
   const handleUnpublishQA = (id: string) => {
     const updatedQAs = qas.map(qa => 
@@ -354,30 +407,97 @@ if (typeof window !== 'undefined') {
     const today = new Date().toISOString().split('T')[0];
     const lastGenerateDate = localStorage.getItem('qa_last_generate_date');
     
-    if (lastGenerateDate === today) {
-      if (!confirm('今天已经生成过问答，是否覆盖？')) {
-        return;
-      }
-    }
-
+    // 保存当前状态到闭包，确保生成过程不受后续操作影响
+    const currentAiEnabled = aiEnabled;
+    const currentRandomTemplateEnabled = randomTemplateEnabled;
+    const currentAiPrompt = aiPrompt;
+    const currentTemplates = [...templates];
+    const currentPublishStrategy = manualEnabled ? 'manual' : 'auto';
+    const currentToday = new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    
     setLoading(true);
+    localStorage.setItem('qa_loading', 'true');
     setAiSuccess(false);
 
     try {
-      // 获取当前使用的提示词
-      const prompt = getCurrentPrompt();
+      // 使用闭包中的状态获取提示词，不受后续操作影响
+      const getPrompt = () => {
+        if (currentRandomTemplateEnabled && currentTemplates.length > 0) {
+          const randomIndex = Math.floor(Math.random() * currentTemplates.length);
+          return currentTemplates[randomIndex];
+        }
+        return currentAiPrompt;
+      };
+      
+      const prompt = getPrompt();
       
       // 调用AI生成内容
       const aiContent = await generateAIContent(prompt);
       
       // 提取问题和回答
-      const lines = aiContent.split('\n');
-      let question = lines[0].replace(/^#\s*/, '');
-      let answer = lines.slice(1).join('\n').trim();
+      let question = '';
+      let answer = aiContent;
       
-      // 如果没有问题，使用默认问题
-      if (!question) {
+      // 首先清理所有 Markdown 格式标记
+      const cleanContent = aiContent.replace(/\*\*/g, '').replace(/__/g, '').trim();
+      
+      // 尝试按常见格式解析
+      const lines = cleanContent.split('\n');
+      
+      // 找第一个看起来像问题的行
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].replace(/^#{1,3}\s*/, '').replace(/^[\d.\-*]+\s*/, '').trim();
+        
+        // 跳过模板标记行
+        if (!line || line.includes('客户提问') || line.includes('专家回答') || line.includes('答：') || line.includes('回答：')) {
+          continue;
+        }
+        
+        // 检查是否是问题（包含问号或长度足够）
+        if (line.includes('？') || line.includes('?') || line.length >= 10) {
+          // 移除开头的"问题："等前缀
+          question = line.replace(/^(问题：|问题:|Q：|Q:|\?\s*)/, '');
+          // 剩余部分作为回答
+          answer = lines.slice(i + 1).join('\n').trim();
+          break;
+        }
+      }
+      
+      // 如果仍然没有找到问题，尝试从完整内容中提取
+      if (!question || question.length < 5) {
+        // 找第一个问号之前的内容
+        const questionMatch = cleanContent.match(/^[\s\S]*?(?=[\?？])/);
+        if (questionMatch && questionMatch[0].trim().length >= 5) {
+          question = questionMatch[0].trim().replace(/^#{1,3}\s*/, '');
+          answer = cleanContent.substring(questionMatch[0].length + 1).trim();
+        }
+      }
+      
+      // 如果还是没有问题，使用默认问题
+      if (!question || question.length < 5) {
         question = `关于GEO优化的问题 - ${today}`;
+      }
+      
+      // 清理回答中的多余标记
+      answer = answer.replace(/^(客户提问|专家回答|答：|回答：)\s*/i, '').trim();
+      
+      // 清理内容末尾的字数说明（如"全文300字"、"约428字"等）
+      answer = answer.replace(/\s*(全文|共计|共|约)?\s*\d+\s*字\s*$/i, '').trim();
+      // 清理内容中间的字数说明
+      answer = answer.replace(/\s*(全文|共计|共|约)\s*\d+\s*字\s*/gi, '').trim();
+      
+      // 查重检查
+      let finalStatus = currentPublishStrategy === 'auto' ? 'published' : 'pending';
+      let duplicateWarningMsg = '';
+      const similarTitles: string[] = [];
+      
+      if (isDuplicateCheckEnabled()) {
+        const result = checkDuplicate('qa', question, answer);
+        if (result.isDuplicate) {
+          finalStatus = 'pending';
+          duplicateWarningMsg = `${question} 与已有内容高度相似，已移至待审核，请人工检查。`;
+          similarTitles.push(...result.similarTitles);
+        }
       }
       
       // 创建新问答
@@ -385,13 +505,14 @@ if (typeof window !== 'undefined') {
         id: Date.now().toString(),
         question,
         answer,
-        date: today,
+        date: currentToday,
         category: '常见问题',
-        status: publishStrategy === 'auto' ? 'published' : 'pending',
+        status: finalStatus,
+        similarTitles: similarTitles.length > 0 ? similarTitles : undefined,
       };
       
-      // 添加到列表
-      const updatedQAs = [...qas, newQA];
+      // 添加到列表开头（最新的在最前面）
+      const updatedQAs = [newQA, ...qas];
       setQAs(updatedQAs);
       localStorage.setItem('qaItems', JSON.stringify(updatedQAs));
       
@@ -401,6 +522,12 @@ if (typeof window !== 'undefined') {
       setAiSuccess(true);
       setTimeout(() => setAiSuccess(false), 3000);
       
+      // 显示重复警告
+      if (duplicateWarningMsg) {
+        setDuplicateWarning(duplicateWarningMsg);
+        setTimeout(() => setDuplicateWarning(''), 5000);
+      }
+      
       // 如果是待审核状态，切换到待审核标签
       if (publishStrategy === 'manual') {
         setActiveTab('pending');
@@ -409,8 +536,9 @@ if (typeof window !== 'undefined') {
       console.error('AI生成失败:', error);
       alert('AI生成失败: ' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
-      setLoading(false);
-    }
+        setLoading(false);
+        localStorage.setItem('qa_loading', 'false');
+      }
   };
 
   const handleDeleteQA = (id: string) => {
@@ -474,7 +602,7 @@ if (typeof window !== 'undefined') {
                 href="/admin/cases"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
-                案例管理
+                方案管理
               </a>
               <a
                 href="/admin/qa"
@@ -505,7 +633,14 @@ if (typeof window !== 'undefined') {
               </button>
             </div>
             
-            {/* AI内容生成模块 */}
+            {/* 重复警告提示 */}
+            {duplicateWarning && (
+              <div className="mb-6 p-4 border border-red-200 rounded-md bg-red-50">
+                <p className="text-red-700">{duplicateWarning}</p>
+              </div>
+            )}
+            
+            {/* AI内容生成和发布设置模块 */}
             <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
               <h2 className="text-lg font-medium text-gray-900 mb-4">AI内容生成</h2>
               
@@ -516,7 +651,8 @@ if (typeof window !== 'undefined') {
                   <span className="text-sm text-gray-600">开启AI生成功能</span>
                   <button
                     onClick={() => setAiEnabled(!aiEnabled)}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${aiEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${aiEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${aiEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -527,13 +663,12 @@ if (typeof window !== 'undefined') {
               
               {/* 提示词设置 */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">固定提示词（最多2000个字符，关闭随机模板时使用）</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">固定提示词（关闭随机模板时使用）</label>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md"
                   rows={4}
-                  maxLength={2000}
                 />
               </div>
               
@@ -544,7 +679,8 @@ if (typeof window !== 'undefined') {
                   <span className="text-sm text-gray-600">从模板库中随机选择提示词</span>
                   <button
                     onClick={() => setRandomTemplateEnabled(!randomTemplateEnabled)}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${randomTemplateEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${randomTemplateEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${randomTemplateEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -558,11 +694,12 @@ if (typeof window !== 'undefined') {
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-sm font-medium text-gray-700">内容风格模板库（随机选择）</label>
                   <button
-                    onClick={() => setShowAddTemplateModal(true)}
-                    className="text-blue-600 hover:text-blue-900 text-sm font-medium"
-                  >
-                    + 添加新模板
-                  </button>
+                  onClick={() => setShowAddTemplateModal(true)}
+                  disabled={loading}
+                  className="text-blue-600 hover:text-blue-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + 添加新模板
+                </button>
                 </div>
                 <div className="border border-gray-300 rounded-md">
                   {templates.map((template, index) => (
@@ -572,18 +709,19 @@ if (typeof window !== 'undefined') {
                       </span>
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => handleEditTemplate(index)}
-                          className="text-blue-600 hover:text-blue-900 text-sm"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTemplate(index)}
-                          className="text-red-600 hover:text-red-900 text-sm"
-                          disabled={templates.length <= 1}
-                        >
-                          删除
-                        </button>
+                      onClick={() => handleEditTemplate(index)}
+                      disabled={loading}
+                      className="text-blue-600 hover:text-blue-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      编辑
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTemplate(index)}
+                      disabled={loading || templates.length <= 1}
+                      className="text-red-600 hover:text-red-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      删除
+                    </button>
                       </div>
                     </div>
                   ))}
@@ -593,7 +731,7 @@ if (typeof window !== 'undefined') {
               {/* 生成按钮 */}
               <button
                 onClick={handleGenerateQA}
-                disabled={loading || !aiEnabled || (!randomTemplateEnabled && !aiPrompt.trim())}
+                disabled={loading || !aiEnabled || (!randomTemplateEnabled && !aiPrompt.trim()) || (randomTemplateEnabled && templates.length === 0)}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? '生成中...' : '一键生成今日问答'}
@@ -625,7 +763,8 @@ if (typeof window !== 'undefined') {
                       setScheduleEnabled(false);
                       setRandomEnabled(false);
                     }}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${manualEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${manualEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${manualEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -645,7 +784,8 @@ if (typeof window !== 'undefined') {
                       setManualEnabled(false);
                       setRandomEnabled(false);
                     }}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${scheduleEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${scheduleEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${scheduleEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -684,6 +824,21 @@ if (typeof window !== 'undefined') {
                     ></span>
                   </button>
                 </div>
+              </div>
+              
+              {/* 每日发布数量 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">每日发布数量</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={dailyLimit}
+                  onChange={(e) => setDailyLimit(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  placeholder="输入每日发布数量"
+                />
               </div>
             </div>
             
@@ -732,15 +887,12 @@ if (typeof window !== 'undefined') {
             {/* 标签页 */}
             <div className="mb-4 border-b border-gray-200">
               <div className="flex space-x-8">
-                {/* 只有人工审核发布时显示待审核标签 */}
-                {manualEnabled && (
-                  <button
-                    onClick={() => setActiveTab('pending')}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                  >
-                    待审核
-                  </button>
-                )}
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                >
+                  待审核
+                </button>
                 <button
                   onClick={() => setActiveTab('published')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'published' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
@@ -791,12 +943,28 @@ if (typeof window !== 'undefined') {
                             编辑
                           </button>
                           {activeTab === 'pending' ? (
-                            <button
-                              onClick={() => handlePublishQA(qa.id)}
-                              className="text-green-600 hover:text-green-900 mr-3"
-                            >
-                              发布
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handlePublishQA(qa.id)}
+                                className="text-green-600 hover:text-green-900 mr-3"
+                              >
+                                发布
+                              </button>
+                              <button
+                                onClick={() => handleForcePublishQA(qa.id)}
+                                className="text-purple-600 hover:text-purple-900 mr-3"
+                              >
+                                强制发布
+                              </button>
+                              {qa.similarTitles && qa.similarTitles.length > 0 && (
+                                <button
+                                  onClick={() => handleViewSimilarQA(qa)}
+                                  className="text-orange-600 hover:text-orange-900 mr-3"
+                                >
+                                  查看相似
+                                </button>
+                              )}
+                            </>
                           ) : (
                             <button
                               onClick={() => handleUnpublishQA(qa.id)}
@@ -889,6 +1057,45 @@ if (typeof window !== 'undefined') {
         </div>
       )}
 
+      {/* 查看相似内容弹窗 */}
+      {showSimilarModal && currentSimilarQA && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">相似内容</h3>
+              <button
+                onClick={() => setShowSimilarModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">当前问答标题</label>
+                <p className="text-gray-900">{currentSimilarQA.question}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">相似问答标题</label>
+                <ul className="border border-gray-300 rounded-md p-2">
+                  {currentSimilarQA.similarTitles?.map((title, index) => (
+                    <li key={index} className="text-sm text-red-600 py-1">• {title}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                onClick={() => setShowSimilarModal(false)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md font-medium"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 添加模板弹窗 */}
       {showAddTemplateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -909,13 +1116,12 @@ if (typeof window !== 'undefined') {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">模板内容（最多2000个字符）</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">模板内容</label>
                 <textarea
                   value={newTemplate}
                   onChange={(e) => setNewTemplate(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md"
                   rows={6}
-                  maxLength={2000}
                   placeholder="请输入模板内容..."
                 />
               </div>
@@ -962,13 +1168,12 @@ if (typeof window !== 'undefined') {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">模板内容（最多2000个字符）</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">模板内容</label>
                 <textarea
                   value={newTemplate}
                   onChange={(e) => setNewTemplate(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md"
                   rows={6}
-                  maxLength={2000}
                 />
               </div>
               <div className="flex space-x-4">

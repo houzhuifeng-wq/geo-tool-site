@@ -13,13 +13,13 @@ export default function CaseDetailPage() {
   const [showServiceModal, setShowServiceModal] = useState(false);
 
   useEffect(() => {
-    // 从localStorage加载案例数据
+    // 从localStorage加载方案数据
     const savedCases = localStorage.getItem('caseStudies');
     if (savedCases) {
       const items = JSON.parse(savedCases);
-      // 查找对应ID的案例
+      // 查找对应ID的方案
       const foundItem = items.find((item: any) => item.id === caseId);
-      // 检查案例是否存在且已发布
+      // 检查方案是否存在且已发布
       if (foundItem && foundItem.status === 'published') {
         setCaseItem(foundItem);
       }
@@ -44,7 +44,7 @@ export default function CaseDetailPage() {
                   博客教程
                 </a>
                 <a href="/cases" className="text-white hover:text-blue-200 font-medium border-b-2 border-white pb-1">
-                  客户案例
+                  客户方案
                 </a>
                 <a href="/qa" className="text-white hover:text-blue-200">
                   行业问答
@@ -98,7 +98,7 @@ export default function CaseDetailPage() {
                   博客教程
                 </a>
                 <a href="/cases" className="text-white hover:text-blue-200 font-medium border-b-2 border-white pb-1">
-                  客户案例
+                  客户方案
                 </a>
                 <a href="/qa" className="text-white hover:text-blue-200">
                   行业问答
@@ -155,13 +155,13 @@ export default function CaseDetailPage() {
         )}
         <section className="py-12 pt-24">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-8">案例不存在</h1>
-            <p className="text-gray-600 mb-8">您访问的案例不存在或已被删除。</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-8">方案不存在</h1>
+            <p className="text-gray-600 mb-8">您访问的方案不存在或已被删除。</p>
             <Link 
               href="/cases" 
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium"
             >
-              返回案例列表
+              返回方案列表
             </Link>
           </div>
         </section>
@@ -189,7 +189,7 @@ export default function CaseDetailPage() {
                 博客教程
               </a>
               <a href="/cases" className="text-white hover:text-blue-200 font-medium border-b-2 border-white pb-1">
-                客户案例
+                客户方案
               </a>
               <a href="/qa" className="text-white hover:text-blue-200">
                 行业问答
@@ -249,7 +249,7 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {/* 案例内容 */}
+      {/* 方案内容 */}
       <section className="py-12 pt-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
@@ -284,7 +284,7 @@ export default function CaseDetailPage() {
                 href="/cases" 
                 className="text-blue-600 hover:text-blue-800 font-medium"
               >
-                ← 返回案例列表
+                ← 返回方案列表
               </Link>
             </div>
           </div>

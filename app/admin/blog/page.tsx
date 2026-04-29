@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateAIContent } from '@/lib/aiClient';
+import { checkDuplicate, isDuplicateCheckEnabled } from '@/lib/duplicateChecker';
 
 type BlogPost = {
   id: string;
@@ -12,11 +13,13 @@ type BlogPost = {
   date: string;
   category: string;
   status?: 'published' | 'pending';
+  similarTitles?: string[];
   [key: string]: any; // 保留其他字段
 };
 
 export default function BlogManagementPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPost, setNewPost] = useState<Partial<BlogPost>>({
     title: '',
@@ -27,6 +30,8 @@ export default function BlogManagementPage() {
   const [activeTab, setActiveTab] = useState<'pending' | 'published'>('published');
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showSimilarModal, setShowSimilarModal] = useState(false);
+  const [currentSimilarPost, setCurrentSimilarPost] = useState<BlogPost | null>(null);
   
   // AI配置状态
   const [aiEnabled, setAiEnabled] = useState<boolean>(false);
@@ -47,8 +52,17 @@ export default function BlogManagementPage() {
   const [scheduleEnabled, setScheduleEnabled] = useState<boolean>(false);
   const [scheduleTime, setScheduleTime] = useState<string>('08:00');
   const [randomEnabled, setRandomEnabled] = useState<boolean>(false);
+  const [dailyLimit, setDailyLimit] = useState<number>(1);
   
   const [loading, setLoading] = useState<boolean>(false);
+
+  // 在客户端挂载后读取localStorage中的loading状态
+  // 但如果页面重新加载，之前的请求肯定已经中断，所以重置为false
+  useEffect(() => {
+    // 页面加载时重置loading状态（之前的请求已经中断）
+    localStorage.setItem('blog_loading', 'false');
+    setLoading(false);
+  }, []);
   const [aiSuccess, setAiSuccess] = useState<boolean>(false);
   
   const router = useRouter();
@@ -76,11 +90,11 @@ export default function BlogManagementPage() {
     if (savedTemplates) {
       setTemplates(JSON.parse(savedTemplates));
     } else {
-      // 初始化默认模板
+      // 如果没有保存的模板，初始化默认模板
       const defaultTemplates = [
-        "你是一位资深 GEO/SEO 撰稿人，用口语化、去 AI 味的风格写一篇 500 字博客，主题与本地搜索优化或网站检测相关。开头用一个真实客户提问引入，中间分2-3个实用建议，结尾自然植入'侯客有道GEO团队'和'服务热线：13953631472'。禁止使用'首先、其次、最后'。",
-        "作为行业老手，以讲故事的方式写一篇 500 字博客：先描述一个企业遇到的流量困境，然后介绍我们如何通过 GEO 优化解决，最后总结 3 条可复用的经验。文中必须包含'侯客有道GEO团队'和'服务热线：13953631472'。语气轻松，像在饭桌上聊天。",
-        "请以'2025 年 GEO 优化新趋势'为主题，写一篇 500 字博客，采用'观点+简短案例'的结构，每段一个观点配一个小案例。禁止使用生硬连接词。开头和结尾各出现一次'侯客有道GEO团队'，并在结尾附近加上'服务热线：13953631472'。"
+        '自选一个本地搜索优化或网站检测相关的主题，撰写一篇专业博客文章。内容要有深度，结构清晰，包含实用建议和案例分析。合理置入：侠客有道GEO团队，服务热线：13953631472。字数控制在500-800字。',
+        '分析当前GEO优化的最新趋势和技术发展，撰写一篇行业分析博客。要求数据准确，观点独到，对读者有启发意义。合理置入：侠客有道GEO团队，服务热线：13953631472。字数控制在500-800字。',
+        '撰写一篇关于如何提升本地搜索排名的实战指南。包含具体的操作步骤、工具推荐和注意事项。合理置入：侠客有道GEO团队，服务热线：13953631472。字数控制在500-800字。'
       ];
       setTemplates(defaultTemplates);
       localStorage.setItem('blog_templates', JSON.stringify(defaultTemplates));
@@ -124,6 +138,13 @@ export default function BlogManagementPage() {
         ...post,
         status: post.status || 'published' // 默认已发布
       }));
+      // 按发布时间排序，最新的在最前面
+      // 优先使用publishedAt，否则使用date字段
+      postsWithStatus.sort((a, b) => {
+        const dateA = a.publishedAt ? new Date(a.publishedAt) : new Date(a.date);
+        const dateB = b.publishedAt ? new Date(b.publishedAt) : new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+      });
       setPosts(postsWithStatus);
     }
   }, [router]);
@@ -265,6 +286,10 @@ if (typeof window !== 'undefined') {
     localStorage.setItem('blog_random_enabled', JSON.stringify(randomEnabled));
   }, [randomEnabled]);
 
+  useEffect(() => {
+    localStorage.setItem('blog_daily_limit', JSON.stringify(dailyLimit));
+  }, [dailyLimit]);
+
   const handleLogout = () => {
     localStorage.removeItem('adminLoggedIn');
     router.push('/admin');
@@ -277,11 +302,12 @@ if (typeof window !== 'undefined') {
         title: newPost.title!,
         excerpt: newPost.excerpt!,
         content: newPost.content!,
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
         category: newPost.category!,
         status: 'published',
       };
-      const updatedPosts = [...posts, post];
+      // 添加到列表开头（最新的在最前面）
+      const updatedPosts = [post, ...posts];
       setPosts(updatedPosts);
       localStorage.setItem('blogPosts', JSON.stringify(updatedPosts));
       setNewPost({ title: '', excerpt: '', content: '', category: '' });
@@ -317,6 +343,21 @@ if (typeof window !== 'undefined') {
     localStorage.setItem('blogPosts', JSON.stringify(updatedPosts));
   };
 
+  // 强制发布（跳过查重）
+  const handleForcePublish = (id: string) => {
+    const updatedPosts = posts.map(post => 
+      post.id === id ? { ...post, status: 'published' as const, similarTitles: undefined } : post
+    );
+    setPosts(updatedPosts);
+    localStorage.setItem('blogPosts', JSON.stringify(updatedPosts));
+  };
+
+  // 处理查看相似内容
+  const handleViewSimilar = (post: BlogPost) => {
+    setCurrentSimilarPost(post);
+    setShowSimilarModal(true);
+  };
+
   // 处理下架博客
   const handleUnpublishPost = (id: string) => {
     const updatedPosts = posts.map(post => 
@@ -344,34 +385,77 @@ if (typeof window !== 'undefined') {
     const today = new Date().toISOString().split('T')[0];
     const lastGenerateDate = localStorage.getItem('blog_last_generate_date');
     
-    if (lastGenerateDate === today) {
-      if (!confirm('今天已经生成过博客，是否覆盖？')) {
-        return;
-      }
-    }
-
+    // 保存当前状态到闭包，确保生成过程不受后续操作影响
+    const currentAiEnabled = aiEnabled;
+    const currentRandomTemplateEnabled = randomTemplateEnabled;
+    const currentAiPrompt = aiPrompt;
+    const currentTemplates = [...templates];
+    const currentPublishStrategy = manualEnabled ? 'manual' : 'auto';
+    const currentToday = new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    
     setLoading(true);
+    localStorage.setItem('blog_loading', 'true');
     setAiSuccess(false);
 
     try {
-      // 获取当前使用的提示词
-      const prompt = getCurrentPrompt();
+      // 使用闭包中的状态获取提示词，不受后续操作影响
+      const getPrompt = () => {
+        if (currentRandomTemplateEnabled && currentTemplates.length > 0) {
+          const randomIndex = Math.floor(Math.random() * currentTemplates.length);
+          return currentTemplates[randomIndex];
+        }
+        return currentAiPrompt;
+      };
+      
+      const prompt = getPrompt();
       
       // 调用AI生成内容
       const aiContent = await generateAIContent(prompt);
       
       // 提取标题和内容
       const lines = aiContent.split('\n');
-      let title = lines[0].replace(/^#\s*/, '');
+      let title = lines[0].replace(/^#{1,3}\s*/, '').replace(/^[\d.\-*]+\s*/, '').trim();
       let content = lines.slice(1).join('\n').trim();
       
-      // 如果没有标题，使用默认标题
-      if (!title) {
+      // 如果标题看起来是模板标记，尝试从内容中提取
+      if (!title || title.length < 5) {
+        // 尝试找第一个非空行作为标题
+        for (const line of lines) {
+          const cleanLine = line.replace(/^#{1,3}\s*/, '').replace(/^[\d.\-*]+\s*/, '').trim();
+          if (cleanLine && cleanLine.length >= 5) {
+            title = cleanLine;
+            content = aiContent.substring(aiContent.indexOf(line) + line.length).trim();
+            break;
+          }
+        }
+      }
+      
+      // 如果仍然没有标题，使用默认标题
+      if (!title || title.length < 5) {
         title = `GEO优化行业动态 - ${today}`;
       }
       
+      // 清理内容末尾的字数说明（如"全文500字"、"约428字"等）
+      content = content.replace(/\s*(全文|共计|共|约)?\s*\d+\s*字\s*$/i, '').trim();
+      // 清理内容中间的字数说明
+      content = content.replace(/\s*(全文|共计|共|约)\s*\d+\s*字\s*/gi, '').trim();
+      
       // 生成摘要
       const excerpt = content.substring(0, 100) + '...';
+      
+      // 查重检查
+      let finalStatus = currentPublishStrategy === 'auto' ? 'published' : 'pending';
+      let duplicateWarning = '';
+      const similarTitles: string[] = [];
+      
+      if (isDuplicateCheckEnabled()) {
+        const result = checkDuplicate('blog', title, content);
+        if (result.isDuplicate) {
+          finalStatus = 'pending';
+          duplicateWarning = `${title} 与已有内容高度相似，已移至待审核，请人工检查。`;
+          similarTitles.push(...result.similarTitles);
+        }
+      }
       
       // 创建新博客
       const newBlog: BlogPost = {
@@ -379,13 +463,14 @@ if (typeof window !== 'undefined') {
         title,
         excerpt,
         content,
-        date: today,
+        date: currentToday,
         category: '行业动态',
-        status: publishStrategy === 'auto' ? 'published' : 'pending',
+        status: finalStatus,
+        similarTitles: similarTitles.length > 0 ? similarTitles : undefined,
       };
       
-      // 添加到列表
-      const updatedPosts = [...posts, newBlog];
+      // 添加到列表开头（最新的在最前面）
+      const updatedPosts = [newBlog, ...posts];
       setPosts(updatedPosts);
       localStorage.setItem('blogPosts', JSON.stringify(updatedPosts));
       
@@ -395,6 +480,12 @@ if (typeof window !== 'undefined') {
       setAiSuccess(true);
       setTimeout(() => setAiSuccess(false), 3000);
       
+      // 显示重复警告
+      if (duplicateWarning) {
+        setDuplicateWarning(duplicateWarning);
+        setTimeout(() => setDuplicateWarning(''), 5000);
+      }
+      
       // 如果是待审核状态，切换到待审核标签
       if (publishStrategy === 'manual') {
         setActiveTab('pending');
@@ -403,8 +494,9 @@ if (typeof window !== 'undefined') {
       console.error('AI生成失败:', error);
       alert('AI生成失败: ' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
-      setLoading(false);
-    }
+        setLoading(false);
+        localStorage.setItem('blog_loading', 'false');
+      }
   };
 
   const handleDeletePost = (id: string) => {
@@ -468,7 +560,7 @@ if (typeof window !== 'undefined') {
                 href="/admin/cases"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
-                案例管理
+                方案管理
               </a>
               <a
                 href="/admin/qa"
@@ -499,6 +591,13 @@ if (typeof window !== 'undefined') {
               </button>
             </div>
             
+            {/* 重复警告提示 */}
+            {duplicateWarning && (
+              <div className="mb-6 p-4 border border-red-200 rounded-md bg-red-50">
+                <p className="text-red-700">{duplicateWarning}</p>
+              </div>
+            )}
+            
             {/* AI内容生成和发布设置模块 */}
             <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
               <h2 className="text-lg font-medium text-gray-900 mb-4">AI内容生成</h2>
@@ -510,7 +609,8 @@ if (typeof window !== 'undefined') {
                   <span className="text-sm text-gray-600">开启AI生成功能</span>
                   <button
                     onClick={() => setAiEnabled(!aiEnabled)}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${aiEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${aiEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${aiEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -521,13 +621,12 @@ if (typeof window !== 'undefined') {
               
               {/* 提示词设置 */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">固定提示词（最多2000个字符，关闭随机模板时使用）</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">固定提示词（关闭随机模板时使用）</label>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md"
                   rows={4}
-                  maxLength={2000}
                 />
               </div>
               
@@ -538,7 +637,8 @@ if (typeof window !== 'undefined') {
                   <span className="text-sm text-gray-600">从模板库中随机选择提示词</span>
                   <button
                     onClick={() => setRandomTemplateEnabled(!randomTemplateEnabled)}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${randomTemplateEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${randomTemplateEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${randomTemplateEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -552,11 +652,12 @@ if (typeof window !== 'undefined') {
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-sm font-medium text-gray-700">内容风格模板库（随机选择）</label>
                   <button
-                    onClick={() => setShowAddTemplateModal(true)}
-                    className="text-blue-600 hover:text-blue-900 text-sm font-medium"
-                  >
-                    + 添加新模板
-                  </button>
+                  onClick={() => setShowAddTemplateModal(true)}
+                  disabled={loading}
+                  className="text-blue-600 hover:text-blue-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + 添加新模板
+                </button>
                 </div>
                 <div className="border border-gray-300 rounded-md">
                   {templates.map((template, index) => (
@@ -566,18 +667,19 @@ if (typeof window !== 'undefined') {
                       </span>
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => handleEditTemplate(index)}
-                          className="text-blue-600 hover:text-blue-900 text-sm"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTemplate(index)}
-                          className="text-red-600 hover:text-red-900 text-sm"
-                          disabled={templates.length <= 1}
-                        >
-                          删除
-                        </button>
+                      onClick={() => handleEditTemplate(index)}
+                      disabled={loading}
+                      className="text-blue-600 hover:text-blue-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      编辑
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTemplate(index)}
+                      disabled={loading || templates.length <= 1}
+                      className="text-red-600 hover:text-red-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      删除
+                    </button>
                       </div>
                     </div>
                   ))}
@@ -587,7 +689,7 @@ if (typeof window !== 'undefined') {
               {/* 生成按钮 */}
               <button
                 onClick={handleGenerateBlog}
-                disabled={loading || !aiEnabled || (!randomTemplateEnabled && !aiPrompt.trim())}
+                disabled={loading || !aiEnabled || (!randomTemplateEnabled && !aiPrompt.trim()) || (randomTemplateEnabled && templates.length === 0)}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? '生成中...' : '一键生成今日博客'}
@@ -619,7 +721,8 @@ if (typeof window !== 'undefined') {
                       setScheduleEnabled(false);
                       setRandomEnabled(false);
                     }}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${manualEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${manualEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${manualEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -639,7 +742,8 @@ if (typeof window !== 'undefined') {
                       setManualEnabled(false);
                       setRandomEnabled(false);
                     }}
-                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${scheduleEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    disabled={loading}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${scheduleEnabled ? 'bg-blue-600' : 'bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ${scheduleEnabled ? 'translate-x-7' : 'translate-x-1'}`}
@@ -678,6 +782,21 @@ if (typeof window !== 'undefined') {
                     ></span>
                   </button>
                 </div>
+              </div>
+              
+              {/* 每日发布数量 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">每日发布数量</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={dailyLimit}
+                  onChange={(e) => setDailyLimit(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  placeholder="输入每日发布数量"
+                />
               </div>
             </div>
             
@@ -735,15 +854,12 @@ if (typeof window !== 'undefined') {
             {/* 标签页 */}
             <div className="mb-4 border-b border-gray-200">
               <div className="flex space-x-8">
-                {/* 只有人工审核发布时显示待审核标签 */}
-                {manualEnabled && (
-                  <button
-                    onClick={() => setActiveTab('pending')}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                  >
-                    待审核
-                  </button>
-                )}
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                >
+                  待审核
+                </button>
                 <button
                   onClick={() => setActiveTab('published')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'published' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
@@ -794,12 +910,28 @@ if (typeof window !== 'undefined') {
                             编辑
                           </button>
                           {activeTab === 'pending' ? (
-                            <button
-                              onClick={() => handlePublishPost(post.id)}
-                              className="text-green-600 hover:text-green-900 mr-3"
-                            >
-                              发布
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handlePublishPost(post.id)}
+                                className="text-green-600 hover:text-green-900 mr-3"
+                              >
+                                发布
+                              </button>
+                              <button
+                                onClick={() => handleForcePublish(post.id)}
+                                className="text-purple-600 hover:text-purple-900 mr-3"
+                              >
+                                强制发布
+                              </button>
+                              {post.similarTitles && post.similarTitles.length > 0 && (
+                                <button
+                                  onClick={() => handleViewSimilar(post)}
+                                  className="text-orange-600 hover:text-orange-900 mr-3"
+                                >
+                                  查看相似
+                                </button>
+                              )}
+                            </>
                           ) : (
                             <button
                               onClick={() => handleUnpublishPost(post.id)}
@@ -901,6 +1033,45 @@ if (typeof window !== 'undefined') {
         </div>
       )}
 
+      {/* 查看相似内容弹窗 */}
+      {showSimilarModal && currentSimilarPost && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">相似内容</h3>
+              <button
+                onClick={() => setShowSimilarModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">当前文章标题</label>
+                <p className="text-gray-900">{currentSimilarPost.title}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">相似文章标题</label>
+                <ul className="border border-gray-300 rounded-md p-2">
+                  {currentSimilarPost.similarTitles?.map((title, index) => (
+                    <li key={index} className="text-sm text-red-600 py-1">• {title}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                onClick={() => setShowSimilarModal(false)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md font-medium"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 添加模板弹窗 */}
       {showAddTemplateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -921,13 +1092,12 @@ if (typeof window !== 'undefined') {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">模板内容（最多2000个字符）</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">模板内容</label>
                 <textarea
                   value={newTemplate}
                   onChange={(e) => setNewTemplate(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md"
                   rows={6}
-                  maxLength={2000}
                   placeholder="请输入模板内容..."
                 />
               </div>
@@ -980,7 +1150,6 @@ if (typeof window !== 'undefined') {
                   onChange={(e) => setNewTemplate(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md"
                   rows={6}
-                  maxLength={2000}
                 />
               </div>
               <div className="flex space-x-4">

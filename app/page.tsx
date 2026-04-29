@@ -278,7 +278,7 @@ ${result.suggestions && result.suggestions.length > 0 ? result.suggestions.map((
                 博客教程
               </a>
               <a href="/cases" className="text-white hover:text-blue-200">
-                客户案例
+                客户方案
               </a>
               <a href="/qa" className="text-white hover:text-blue-200">
                 行业问答
@@ -504,13 +504,13 @@ ${result.suggestions && result.suggestions.length > 0 ? result.suggestions.map((
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* 客户案例卡片 */}
+            {/* 客户方案卡片 */}
             <a href="/cases" className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
               <div className="h-32 bg-blue-50 rounded-md mb-4 flex items-center justify-center">
                 <span className="text-blue-400 text-4xl">📊</span>
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">查看优化案例</h3>
-              <p className="text-gray-600 text-sm">浏览我们成功的GEO优化案例，了解如何提升网站排名</p>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">查看优化方案</h3>
+              <p className="text-gray-600 text-sm">浏览我们成功的GEO优化方案，了解如何提升网站排名</p>
             </a>
             
             {/* 行业问答卡片 */}

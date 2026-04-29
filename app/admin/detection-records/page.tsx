@@ -95,7 +95,7 @@ export default function DetectionRecordsPage() {
                 href="/admin/cases"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
-                案例管理
+                方案管理
               </a>
               <a
                 href="/admin/qa"

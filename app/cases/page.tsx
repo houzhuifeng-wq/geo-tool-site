@@ -42,7 +42,7 @@ export default function CasesPage() {
                 博客教程
               </a>
               <a href="/cases" className="text-white hover:text-blue-200 font-medium border-b-2 border-white pb-1">
-                客户案例
+                客户方案
               </a>
               <a href="/qa" className="text-white hover:text-blue-200">
                 行业问答
