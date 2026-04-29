@@ -1,10 +1,6 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-import { open } from 'sqlite';
-import sqlite3 from 'sqlite3';
+import { PrismaClient } from '@prisma/client';
 
-// 数据库路径
-const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
+const prisma = new PrismaClient();
 
 // 板块类型
 type Section = 'blog' | 'qa' | 'cases';
@@ -35,7 +31,42 @@ function getRandomTimeThisMinute(): string {
   return `${hours}:${minutes}`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // ========== 安全验证 ==========
+  const cronSecret = process.env.CRON_SECRET;
+  
+  if (!cronSecret) {
+    console.error('CRON_SECRET 环境变量未设置');
+    return new Response(JSON.stringify({ error: 'Server configuration error' }), { status: 500 });
+  }
+
+  // 支持两种验证方式：
+  // 1. Authorization: Bearer <secret>
+  // 2. URL 参数 ?token=<secret>
+  
+  const authHeader = request.headers.get('Authorization');
+  const url = new URL(request.url);
+  const urlToken = url.searchParams.get('token');
+  
+  let isValid = false;
+  
+  // 检查 Authorization 头
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const bearerToken = authHeader.substring(7);
+    isValid = bearerToken === cronSecret;
+  }
+  
+  // 检查 URL token 参数
+  if (!isValid && urlToken) {
+    isValid = urlToken === cronSecret;
+  }
+  
+  if (!isValid) {
+    console.warn('未授权的自动发布请求');
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+  // ========== 验证结束 ==========
+
   try {
     // 获取当前时间（中国时区 UTC+8）
     const now = new Date();
@@ -45,13 +76,8 @@ export async function GET() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database
-    });
-
     // 读取所有板块的发布设置
-    const publishSettings = await db.all('SELECT * FROM PublishSettings');
+    const publishSettings = await prisma.publishSettings.findMany();
     
     // 定义默认设置
     const defaultSettings: Record<Section, PublishSettings> = {
@@ -75,22 +101,32 @@ export async function GET() {
       }
     });
 
+    // ========== 支持 ?section 参数 ==========
+    const sectionParam = url.searchParams.get('section') as Section | null;
+    const sectionsToProcess: Section[] = sectionParam 
+      ? [sectionParam] 
+      : (Object.keys(defaultSettings) as Section[]);
+    // ========== section 参数处理结束 ==========
+
     const results: PublishResult[] = [];
 
-    // 对每个板块进行处理
-    for (const section of Object.keys(defaultSettings) as Section[]) {
+    // 对指定板块进行处理
+    for (const section of sectionsToProcess) {
       const settings = defaultSettings[section];
       let publishedCount = 0;
       let remainingPending = 0;
       let message = '';
 
       // 统计今天已经自动发布的数量
-      const todayPublishedCount = await db.get(`
-        SELECT COUNT(*) as count FROM ${section}
-        WHERE status = 'published'
-        AND publishedAt >= ?
-        AND publishedAt < ?
-      `, [today, tomorrow]);
+      const todayPublishedCount = await prisma[section].count({
+        where: {
+          status: 'published',
+          publishedAt: {
+            gte: today,
+            lt: tomorrow
+          }
+        }
+      });
 
       // 计算剩余可发布数
       const remaining = settings.dailyLimit - (todayPublishedCount?.count || 0);
@@ -101,12 +137,16 @@ export async function GET() {
       }
 
       // 查询待发布列表
-      const pendingItems = await db.all(`
-        SELECT * FROM ${section}
-        WHERE status = 'pending'
-        AND (publishAt IS NULL OR publishAt <= ?)
-        ORDER BY createdAt ASC
-      `, [nowUtc8]);
+      const pendingItems = await prisma[section].findMany({
+        where: {
+          status: 'pending',
+          OR: [
+            { publishAt: null },
+            { publishAt: { lte: nowUtc8 } }
+          ]
+        },
+        orderBy: { createdAt: 'asc' }
+      });
 
       remainingPending = pendingItems.length;
 
@@ -127,11 +167,10 @@ export async function GET() {
         const itemIds = publishItems.map(item => item.id);
 
         if (itemIds.length > 0) {
-          await db.run(`
-            UPDATE ${section}
-            SET status = 'published', publishedAt = ?
-            WHERE id IN (${itemIds.map(() => '?').join(',')})
-          `, [nowUtc8, ...itemIds]);
+          await prisma[section].updateMany({
+            where: { id: { in: itemIds } },
+            data: { status: 'published', publishedAt: nowUtc8 }
+          });
 
           publishedCount = itemIds.length;
           remainingPending = pendingItems.length - publishedCount;
@@ -142,11 +181,9 @@ export async function GET() {
       // 如果定时发布未触发，检查是否需要随机发布
       if (!isScheduledPublish && settings.randomEnabled) {
         // 检查今天是否已经随机发布过
-        const todayRandomLog = await db.get(`
-          SELECT * FROM RandomPublishLog
-          WHERE section = ?
-          AND date = ?
-        `, [section, today]);
+        const todayRandomLog = await prisma.randomPublishLog.findUnique({
+          where: { section_date: { section, date: today } }
+        });
 
         if (!todayRandomLog) {
           // 检查是否需要生成今天的随机目标时间
@@ -159,12 +196,10 @@ export async function GET() {
             randomTargetDate = today;
 
             // 更新数据库中的随机目标时间
-            await db.run(`
-              UPDATE PublishSettings
-              SET randomTargetTime = ?,
-                  randomTargetDate = ?
-              WHERE section = ?
-            `, [randomTargetTime, randomTargetDate, section]);
+            await prisma.publishSettings.update({
+              where: { section },
+              data: { randomTargetTime, randomTargetDate }
+            });
           }
 
           // 检查当前时间是否达到随机目标时间
@@ -176,17 +211,15 @@ export async function GET() {
 
             if (itemIds.length > 0) {
               // 更新文章状态
-              await db.run(`
-                UPDATE ${section}
-                SET status = 'published', publishedAt = ?
-                WHERE id IN (${itemIds.map(() => '?').join(',')})
-              `, [nowUtc8, ...itemIds]);
+              await prisma[section].updateMany({
+                where: { id: { in: itemIds } },
+                data: { status: 'published', publishedAt: nowUtc8 }
+              });
 
               // 记录随机发布日志
-              await db.run(`
-                INSERT INTO RandomPublishLog (section, date, publishedCount)
-                VALUES (?, ?, ?)
-              `, [section, today, itemIds.length]);
+              await prisma.randomPublishLog.create({
+                data: { section, date: today, publishedCount: itemIds.length }
+              });
 
               publishedCount = itemIds.length;
               remainingPending = pendingItems.length - publishedCount;
@@ -203,7 +236,7 @@ export async function GET() {
       results.push({ section, published: publishedCount, remainingPending, message });
     }
 
-    await db.close();
+    await prisma.$disconnect();
 
     return new Response(JSON.stringify({
       success: true,
