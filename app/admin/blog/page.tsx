@@ -140,7 +140,7 @@ export default function BlogManagementPage() {
       }));
       // 按发布时间排序，最新的在最前面
       // 优先使用publishedAt，否则使用date字段
-      postsWithStatus.sort((a, b) => {
+      postsWithStatus.sort((a: { publishedAt?: string; date: string }, b: { publishedAt?: string; date: string }) => {
         const dateA = a.publishedAt ? new Date(a.publishedAt) : new Date(a.date);
         const dateB = b.publishedAt ? new Date(b.publishedAt) : new Date(b.date);
         return dateB.getTime() - dateA.getTime();
