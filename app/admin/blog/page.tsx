@@ -444,7 +444,7 @@ if (typeof window !== 'undefined') {
       const excerpt = content.substring(0, 100) + '...';
       
       // 查重检查
-      let finalStatus = currentPublishStrategy === 'auto' ? 'published' : 'pending';
+      let finalStatus: 'published' | 'pending' = currentPublishStrategy === 'auto' ? 'published' : 'pending';
       let duplicateWarning = '';
       const similarTitles: string[] = [];
       
