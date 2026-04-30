@@ -1,3 +1,9 @@
 {
-  "buildCommand": "npx prisma generate && next build"
+  "installCommand": "npm install",
+  "buildCommand": "npx prisma generate && next build",
+  "functions": {
+    "app/api/**/*.{ts,tsx}": {
+      "runtime": "@vercel/node@3.0.2"
+    }
+  }
 }
