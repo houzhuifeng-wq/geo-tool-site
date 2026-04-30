@@ -1,10 +1,6 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-import { open } from 'sqlite';
-import sqlite3 from 'sqlite3';
+import { PrismaClient } from '@prisma/client';
 
-// 数据库路径
-const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
+const prisma = new PrismaClient();
 
 // 板块类型
 type Section = 'blog' | 'qa' | 'cases';
@@ -31,13 +27,8 @@ interface PublishSettingsResponse {
 
 export async function GET() {
   try {
-    const db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database
-    });
-
     // 获取所有板块的发布设置
-    const settings = await db.all('SELECT * FROM PublishSettings');
+    const settings = await prisma.publishSettings.findMany();
     
     // 定义默认设置
     const defaultSettings: Record<Section, PublishSettingsResponse> = {
@@ -47,7 +38,7 @@ export async function GET() {
     };
     
     // 合并数据库中的设置
-    settings.forEach(setting => {
+    settings.forEach((setting: any) => {
       if (setting.section && defaultSettings[setting.section as Section]) {
         defaultSettings[setting.section as Section] = {
           section: setting.section as Section,
@@ -60,7 +51,7 @@ export async function GET() {
       }
     });
 
-    await db.close();
+    await prisma.$disconnect();
     
     return new Response(JSON.stringify(Object.values(defaultSettings)), {
       status: 200,
@@ -68,6 +59,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error('获取发布设置失败:', error);
+    await prisma.$disconnect();
     return new Response(JSON.stringify({ error: '获取发布设置失败' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -82,19 +74,28 @@ export async function POST(request: Request) {
     
     // 验证 dailyLimit 范围
     const validatedDailyLimit = Math.max(1, Math.min(10, dailyLimit));
-    
-    const db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database
-    });
 
     // 更新或创建发布设置
-    await db.run(`
-      INSERT OR REPLACE INTO PublishSettings (section, strategy, dailyLimit, scheduleEnabled, scheduleTime, randomEnabled)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, [section, strategy, validatedDailyLimit, scheduleEnabled, scheduleTime, randomEnabled]);
+    await prisma.publishSettings.upsert({
+      where: { section },
+      update: {
+        strategy,
+        dailyLimit: validatedDailyLimit,
+        scheduleEnabled,
+        scheduleTime,
+        randomEnabled
+      },
+      create: {
+        section,
+        strategy,
+        dailyLimit: validatedDailyLimit,
+        scheduleEnabled,
+        scheduleTime,
+        randomEnabled
+      }
+    });
 
-    await db.close();
+    await prisma.$disconnect();
     
     return new Response(JSON.stringify({
       section,
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('更新发布设置失败:', error);
+    await prisma.$disconnect();
     return new Response(JSON.stringify({ error: '更新发布设置失败' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
