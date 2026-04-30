@@ -53,6 +53,10 @@ export async function generateAIContent(prompt: string): Promise<string> {
       console.log('开始调用AI API...');
       const startTime = Date.now();
       
+      // 创建AbortController实现超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 100000); // 100秒超时
+
       // 调用火山引擎API
       const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
         method: 'POST',
@@ -70,8 +74,11 @@ export async function generateAIContent(prompt: string): Promise<string> {
           max_tokens: 2000,
           temperature: 0.7
         }),
-        timeout: 100000 // 100秒超时
+        signal: controller.signal
       });
+
+      // 请求完成后清除超时定时器
+      clearTimeout(timeoutId);
 
       const duration = Date.now() - startTime;
       console.log(`AI API响应时间: ${duration}ms`);

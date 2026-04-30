@@ -15,6 +15,15 @@ interface PublishSettings {
   randomEnabled: boolean;
 }
 
+// API 返回的发布设置项类型
+interface PublishSettingItem {
+  section: 'blog' | 'qa' | 'cases';
+  dailyLimit?: number;
+  scheduleEnabled?: boolean;
+  scheduleTime?: string;
+  randomEnabled?: boolean;
+}
+
 export default function PublishSettingsPage() {
   const [settings, setSettings] = useState<Record<Section, PublishSettings>>({
     blog: { section: 'blog', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false },
@@ -49,7 +58,7 @@ export default function PublishSettingsPage() {
           cases: { section: 'cases', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false }
         };
         
-        data.forEach((item: any) => {
+        data.forEach((item: PublishSettingItem) => {
           if (newSettings[item.section]) {
             newSettings[item.section] = {
               ...newSettings[item.section],

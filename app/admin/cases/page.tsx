@@ -157,7 +157,7 @@ export default function CasesManagementPage() {
         }));
         // 按发布时间排序，最新的在最前面
         // 优先使用publishedAt，否则使用date字段
-        casesWithStatus.sort((a, b) => {
+        casesWithStatus.sort((a: { publishedAt?: string; date: string }, b: { publishedAt?: string; date: string }) => {
           const dateA = a.publishedAt ? new Date(a.publishedAt) : new Date(a.date);
           const dateB = b.publishedAt ? new Date(b.publishedAt) : new Date(b.date);
           return dateB.getTime() - dateA.getTime();
@@ -460,7 +460,7 @@ if (typeof window !== 'undefined') {
       const excerpt = content.substring(0, 100) + '...';
       
       // 查重检查
-      let finalStatus = currentPublishStrategy === 'auto' ? 'published' : 'pending';
+      let finalStatus: 'published' | 'pending' = currentPublishStrategy === 'auto' ? 'published' : 'pending';
       let duplicateWarningMsg = '';
       const similarTitles: string[] = [];
       

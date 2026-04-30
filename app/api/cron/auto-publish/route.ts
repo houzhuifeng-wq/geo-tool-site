@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     };
     
     // 合并数据库中的设置
-    publishSettings.forEach(setting => {
+    publishSettings.forEach((setting: any) => {
       if (setting.section && defaultSettings[setting.section as Section]) {
         defaultSettings[setting.section as Section] = {
           ...defaultSettings[setting.section as Section],
@@ -118,7 +118,7 @@ export async function GET(request: Request) {
       let message = '';
 
       // 统计今天已经自动发布的数量
-      const todayPublishedCount = await prisma[section].count({
+      const todayPublishedCount = await (prisma[section as keyof typeof prisma] as any).count({
         where: {
           status: 'published',
           publishedAt: {
@@ -137,7 +137,7 @@ export async function GET(request: Request) {
       }
 
       // 查询待发布列表
-      const pendingItems = await prisma[section].findMany({
+      const pendingItems = await (prisma[section as keyof typeof prisma] as any).findMany({
         where: {
           status: 'pending',
           OR: [
@@ -164,10 +164,10 @@ export async function GET(request: Request) {
         // 执行定时发布
         isScheduledPublish = true;
         const publishItems = pendingItems.slice(0, remaining);
-        const itemIds = publishItems.map(item => item.id);
+        const itemIds = publishItems.map((item: any) => item.id);
 
         if (itemIds.length > 0) {
-          await prisma[section].updateMany({
+          await (prisma[section as keyof typeof prisma] as any).updateMany({
             where: { id: { in: itemIds } },
             data: { status: 'published', publishedAt: nowUtc8 }
           });
@@ -211,7 +211,7 @@ export async function GET(request: Request) {
 
             if (itemIds.length > 0) {
               // 更新文章状态
-              await prisma[section].updateMany({
+              await (prisma[section as keyof typeof prisma] as any).updateMany({
                 where: { id: { in: itemIds } },
                 data: { status: 'published', publishedAt: nowUtc8 }
               });

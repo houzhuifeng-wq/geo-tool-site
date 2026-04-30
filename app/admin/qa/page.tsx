@@ -147,7 +147,7 @@ export default function QAManagementPage() {
       }));
       // 按发布时间排序，最新的在最前面
       // 优先使用publishedAt，否则使用date字段
-      qasWithStatus.sort((a, b) => {
+      qasWithStatus.sort((a: any, b: any) => {
         const dateA = a.publishedAt ? new Date(a.publishedAt) : new Date(a.date);
         const dateB = b.publishedAt ? new Date(b.publishedAt) : new Date(b.date);
         return dateB.getTime() - dateA.getTime();
@@ -164,7 +164,7 @@ export default function QAManagementPage() {
         }));
         // 按发布时间排序，最新的在最前面
         // 优先使用publishedAt，否则使用date字段
-        qasWithStatus.sort((a, b) => {
+        qasWithStatus.sort((a: any, b: any) => {
           const dateA = a.publishedAt ? new Date(a.publishedAt) : new Date(a.date);
           const dateB = b.publishedAt ? new Date(b.publishedAt) : new Date(b.date);
           return dateB.getTime() - dateA.getTime();
@@ -507,7 +507,7 @@ if (typeof window !== 'undefined') {
         answer,
         date: currentToday,
         category: '常见问题',
-        status: finalStatus,
+        status: finalStatus as 'published' | 'pending',
         similarTitles: similarTitles.length > 0 ? similarTitles : undefined,
       };
       
