@@ -19,7 +19,13 @@ export async function generateAIContent(prompt: string): Promise<string> {
     // 域名防盗用检查
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    const allowedHostnames = ['yiyun.aisourcegeo.com', 'localhost', '127.0.0.1'];
+    // 从环境变量读取允许的域名
+    const allowedHostnamesEnv = process.env.NEXT_PUBLIC_GEO_WHITELIST_SITES || '';
+    const allowedHostnames = allowedHostnamesEnv
+      .split(',')
+      .map(domain => domain.trim())
+      .filter(domain => domain)
+      .concat(['localhost', '127.0.0.1']); // 添加本地开发域名
     if (!allowedHostnames.includes(hostname)) {
       throw new Error('当前域名未授权使用AI功能');
     }

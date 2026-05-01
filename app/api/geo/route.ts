@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 白名单配置
-const WHITE_LIST = ['www.your-site.com', 'your-success-site.com'];
+// 从环境变量读取白名单配置
+const getWhitelist = (): string[] => {
+  const envWhitelist = process.env.NEXT_PUBLIC_GEO_WHITELIST_SITES || '';
+  return envWhitelist.split(',').map(domain => domain.trim()).filter(domain => domain);
+};
+
+const WHITE_LIST = getWhitelist();
 
 // 检查URL是否在白名单中
 function isWhitelistSite(url: string): boolean {
