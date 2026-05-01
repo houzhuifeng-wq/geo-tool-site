@@ -5,6 +5,13 @@ const prisma = new PrismaClient();
 // 板块类型
 type Section = 'blog' | 'qa' | 'cases';
 
+// Prisma 模型名称映射（Prisma 会将模型名转为复数）
+const sectionToModel: Record<Section, string> = {
+  blog: 'blogs',
+  qa: 'qas',
+  cases: 'cases'
+};
+
 // 发布设置类型
 interface PublishSettings {
   section: Section;
@@ -118,7 +125,8 @@ export async function GET(request: Request) {
       let message = '';
 
       // 统计今天已经自动发布的数量
-      const todayPublishedCount = await (prisma[section as keyof typeof prisma] as any).count({
+      const modelName = sectionToModel[section];
+      const todayPublishedCount = await (prisma[modelName as keyof typeof prisma] as any).count({
         where: {
           status: 'published',
           publishedAt: {
@@ -137,7 +145,7 @@ export async function GET(request: Request) {
       }
 
       // 查询待发布列表
-      const pendingItems = await (prisma[section as keyof typeof prisma] as any).findMany({
+      const pendingItems = await (prisma[modelName as keyof typeof prisma] as any).findMany({
         where: {
           status: 'pending',
           OR: [
@@ -167,7 +175,7 @@ export async function GET(request: Request) {
         const itemIds = publishItems.map((item: any) => item.id);
 
         if (itemIds.length > 0) {
-          await (prisma[section as keyof typeof prisma] as any).updateMany({
+          await (prisma[modelName as keyof typeof prisma] as any).updateMany({
             where: { id: { in: itemIds } },
             data: { status: 'published', publishedAt: nowUtc8 }
           });
@@ -211,7 +219,7 @@ export async function GET(request: Request) {
 
             if (itemIds.length > 0) {
               // 更新文章状态
-              await (prisma[section as keyof typeof prisma] as any).updateMany({
+              await (prisma[modelName as keyof typeof prisma] as any).updateMany({
                 where: { id: { in: itemIds } },
                 data: { status: 'published', publishedAt: nowUtc8 }
               });
