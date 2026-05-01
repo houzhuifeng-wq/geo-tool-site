@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -35,4 +35,46 @@ model RandomPublishLog {
   createdAt       DateTime @default(now())
   
   @@unique([section, date])
+}
+
+model Blog {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  category        String
+  status          String   @default("pending")
+  date            DateTime @default(now())
+  publishedAt     DateTime?
+  publishAt       DateTime?
+  similarTitles   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Qa {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  category        String
+  status          String   @default("pending")
+  date            DateTime @default(now())
+  publishedAt     DateTime?
+  publishAt       DateTime?
+  similarTitles   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Cases {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  category        String
+  status          String   @default("pending")
+  date            DateTime @default(now())
+  publishedAt     DateTime?
+  publishAt       DateTime?
+  similarTitles   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
