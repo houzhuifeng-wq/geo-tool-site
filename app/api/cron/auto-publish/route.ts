@@ -129,7 +129,7 @@ export async function GET(request: Request) {
       });
 
       // 计算剩余可发布数
-      const remaining = settings.dailyLimit - (todayPublishedCount?.count || 0);
+      const remaining = settings.dailyLimit - (todayPublishedCount || 0);
       if (remaining <= 0) {
         message = `已达到每日发布限制（${settings.dailyLimit}篇）`;
         results.push({ section, published: 0, remainingPending: 0, message });
