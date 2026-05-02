@@ -1,5 +1,5 @@
 // This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// learn more about it in the docs: `https://pris.ly/d/prisma-schema`
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
- provider = "postgresql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -25,6 +25,8 @@ model PublishSettings {
   randomTargetDate DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  @@map("publishsettings")
 }
 
 model RandomPublishLog {
@@ -35,6 +37,7 @@ model RandomPublishLog {
   createdAt       DateTime @default(now())
   
   @@unique([section, date])
+  @@map("randompublishlog")
 }
 
 model Blog {
@@ -49,6 +52,8 @@ model Blog {
   similarTitles   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  @@map("blogs")
 }
 
 model Qa {
@@ -63,6 +68,8 @@ model Qa {
   similarTitles   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  @@map("qas")
 }
 
 model Cases {
@@ -77,4 +84,6 @@ model Cases {
   similarTitles   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  @@map("cases")
 }
