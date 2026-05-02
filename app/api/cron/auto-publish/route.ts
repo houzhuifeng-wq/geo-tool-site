@@ -1,18 +1,13 @@
+// app/api/cron/auto-publish/route.ts
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 type Section = 'blog' | 'qa' | 'cases';
 
-// Prisma 使用单数模型名
-const sectionToModel: Record<Section, string> = {
-  blog: 'blog',
-  qa: 'qa',
-  cases: 'cases'
-};
-
 export async function GET(request: Request) {
   try {
+    // 验证 token
     const cronSecret = process.env.CRON_SECRET;
     const url = new URL(request.url);
     const urlToken = url.searchParams.get('token');
@@ -23,24 +18,34 @@ export async function GET(request: Request) {
 
     const results = [];
     
-    for (const section of ['blog', 'qa', 'cases'] as Section[]) {
-      const modelName = sectionToModel[section];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // 使用 Prisma Client 正确的单数形式
-      const count = await (prisma[modelName as keyof typeof prisma] as any).count({
-        where: { status: 'published', publishedAt: { gte: today } }
-      });
-      
-      results.push({ section, published: count, message: '查询成功' });
+    // 使用正确的 Prisma 模型名
+    const sections: Section[] = ['blog', 'qa', 'cases'];
+    
+    for (const section of sections) {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // 使用 Prisma 正确的模型名
+        const count = await prisma[section].count({
+          where: { 
+            status: 'published', 
+            publishedAt: { gte: today } 
+          }
+        });
+        
+        results.push({ section, published: count, message: '查询成功' });
+        
+      } catch (modelError) {
+        results.push({ section, published: 0, message: `模型错误: ${modelError instanceof Error ? modelError.message : '未知'}` });
+      }
     }
 
     await prisma.$disconnect();
     return new Response(JSON.stringify({ success: true, results }), { status: 200 });
     
   } catch (error) {
-    console.error('错误:', error);
+    console.error('API 错误:', error);
     await prisma.$disconnect();
     return new Response(JSON.stringify({ 
       error: '自动发布失败', 
