@@ -34,6 +34,57 @@ export async function GET() {
       );
     `);
 
+    // 创建 blogs 表
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "blogs" (
+        "id" TEXT PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "content" TEXT NOT NULL,
+        "category" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'pending',
+        "date" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "publishedat" TIMESTAMP,
+        "publishat" TIMESTAMP,
+        "similartitles" TEXT,
+        "createdat" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedat" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 创建 qas 表
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "qas" (
+        "id" TEXT PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "content" TEXT NOT NULL,
+        "category" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'pending',
+        "date" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "publishedat" TIMESTAMP,
+        "publishat" TIMESTAMP,
+        "similartitles" TEXT,
+        "createdat" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedat" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 创建 cases 表
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "cases" (
+        "id" TEXT PRIMARY KEY,
+        "title" TEXT NOT NULL,
+        "content" TEXT NOT NULL,
+        "category" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'pending',
+        "date" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "publishedat" TIMESTAMP,
+        "publishat" TIMESTAMP,
+        "similartitles" TEXT,
+        "createdat" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedat" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // 初始化默认设置
     await prisma.$executeRawUnsafe(`
       INSERT INTO "publishsettings" ("section", "strategy", "dailylimit", "scheduleenabled", "scheduletime", "randomenabled")
@@ -45,7 +96,7 @@ export async function GET() {
     `);
 
     await prisma.$disconnect();
-    return new Response(JSON.stringify({ success: true, message: '数据库表创建成功' }), { status: 200 });
+    return new Response(JSON.stringify({ success: true, message: '所有数据库表创建成功' }), { status: 200 });
     
   } catch (error) {
     await prisma.$disconnect();
