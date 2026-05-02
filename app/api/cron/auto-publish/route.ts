@@ -13,7 +13,6 @@ const sectionToTable: Record<Section, string> = {
 
 export async function GET(request: Request) {
   try {
-    // 验证 token
     const cronSecret = process.env.CRON_SECRET;
     const url = new URL(request.url);
     const urlToken = url.searchParams.get('token');
@@ -23,26 +22,26 @@ export async function GET(request: Request) {
     }
 
     const results = [];
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
     
     for (const section of ['blog', 'qa', 'cases'] as Section[]) {
       const tableName = sectionToTable[section];
       
       try {
-        // 使用原始 SQL 查询
+        // 使用 as any 来避免类型错误
         const result = await prisma.$queryRawUnsafe(`
           SELECT COUNT(*) as count 
           FROM "${tableName}" 
           WHERE status = 'published' 
             AND DATE(publishedat) = $1
-        `, today);
+        `, today) as any[];
         
-        const count = result.length > 0 ? (result[0] as any).count : 0;
+        const count = result.length > 0 ? result[0].count : 0;
         
         results.push({ section, published: count, message: '查询成功' });
         
       } catch (error) {
-        results.push({ section, published: 0, message: `查询失败: ${error instanceof Error ? error.message : '未知'}` });
+        results.push({ section, published: 0, message: `查询失败` });
       }
     }
 
