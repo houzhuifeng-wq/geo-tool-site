@@ -189,9 +189,9 @@ export async function GET(request: Request) {
       // 如果定时发布未触发，检查是否需要随机发布
       if (!isScheduledPublish && settings.randomEnabled) {
         // 检查今天是否已经随机发布过
-        const todayRandomLog = await prisma.randomPublishLog.findUnique({
-          where: { section_date: { section, date: today } }
-        });
+        const todayRandomLog = await prisma.randomPublishLog.findFirst({
+           where: { section, date: { gte: today, lt: tomorrow } }
+         });
 
         if (!todayRandomLog) {
           // 检查是否需要生成今天的随机目标时间
