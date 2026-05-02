@@ -28,7 +28,6 @@ export async function GET(request: Request) {
       const tableName = sectionToTable[section];
       
       try {
-        // 使用 as any 来避免类型错误
         const result = await prisma.$queryRawUnsafe(`
           SELECT COUNT(*) as count 
           FROM "${tableName}" 
@@ -41,7 +40,12 @@ export async function GET(request: Request) {
         results.push({ section, published: count, message: '查询成功' });
         
       } catch (error) {
-        results.push({ section, published: 0, message: `查询失败` });
+        // 添加详细错误信息
+        results.push({ 
+          section, 
+          published: 0, 
+          message: `查询失败: ${error instanceof Error ? error.message.substring(0, 100) : '未知错误'}` 
+        });
       }
     }
 
@@ -49,7 +53,6 @@ export async function GET(request: Request) {
     return new Response(JSON.stringify({ success: true, results }), { status: 200 });
     
   } catch (error) {
-    console.error('API 错误:', error);
     await prisma.$disconnect();
     return new Response(JSON.stringify({ 
       error: '自动发布失败', 
