@@ -256,7 +256,12 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error('自动发布失败:', error);
-    return new Response(JSON.stringify({ error: '自动发布失败' }), {
+    const errorDetails = {
+      message: '自动发布失败',
+      error: error instanceof Error ? error.message : '未知错误',
+      stack: error instanceof Error ? error.stack?.substring(0, 500) : undefined
+    };
+    return new Response(JSON.stringify(errorDetails), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
