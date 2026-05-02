@@ -5,6 +5,12 @@ const prisma = new PrismaClient();
 
 type Section = 'blog' | 'qa' | 'cases';
 
+const sectionToTable: Record<Section, string> = {
+  blog: 'blogs',
+  qa: 'qas',
+  cases: 'cases'
+};
+
 export async function GET(request: Request) {
   try {
     // 验证 token
@@ -17,27 +23,26 @@ export async function GET(request: Request) {
     }
 
     const results = [];
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     
-    // 使用正确的 Prisma 模型名
-    const sections: Section[] = ['blog', 'qa', 'cases'];
-    
-    for (const section of sections) {
+    for (const section of ['blog', 'qa', 'cases'] as Section[]) {
+      const tableName = sectionToTable[section];
+      
       try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // 使用原始 SQL 查询
+        const result = await prisma.$queryRawUnsafe(`
+          SELECT COUNT(*) as count 
+          FROM "${tableName}" 
+          WHERE status = 'published' 
+            AND DATE(publishedat) = $1
+        `, today);
         
-        // 使用 Prisma 正确的模型名
-        const count = await prisma[section].count({
-          where: { 
-            status: 'published', 
-            publishedAt: { gte: today } 
-          }
-        });
+        const count = result.length > 0 ? (result[0] as any).count : 0;
         
         results.push({ section, published: count, message: '查询成功' });
         
-      } catch (modelError) {
-        results.push({ section, published: 0, message: `模型错误: ${modelError instanceof Error ? modelError.message : '未知'}` });
+      } catch (error) {
+        results.push({ section, published: 0, message: `查询失败: ${error instanceof Error ? error.message : '未知'}` });
       }
     }
 
