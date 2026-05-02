@@ -5,8 +5,8 @@ const prisma = new PrismaClient();
 type Section = 'blog' | 'qa' | 'cases';
 
 const sectionToModel: Record<Section, string> = {
-  blog: 'blogs',
-  qa: 'qas',
+  blog: 'blog',
+  qa: 'qa',
   cases: 'cases'
 };
 
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 
     // 查询待发布文章
     console.log('正在查询待发布文章...');
-    const pendingBlogs = await prisma.blogs.findMany({ where: { status: 'pending' } });
+    const pendingBlogs = await prisma.blog.findMany({ where: { status: 'pending' } });
     console.log('待发布博客数量:', pendingBlogs.length);
 
     // 发布逻辑
