@@ -125,7 +125,6 @@ export default function PublishSettingsPage() {
     setMessage('');
 
     try {
-      // 保存每个板块的设置
       for (const section of Object.keys(settings) as Section[]) {
         const response = await fetch('/api/admin/publish-settings', {
           method: 'POST',
@@ -141,6 +140,34 @@ export default function PublishSettingsPage() {
       }
 
       setMessage('所有设置保存成功！');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('保存设置失败:', error);
+      setMessage('保存设置失败，请重试');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveSection = async (section: Section) => {
+    setSaving(true);
+    setMessage('');
+
+    try {
+      const response = await fetch('/api/admin/publish-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings[section])
+      });
+
+      if (!response.ok) {
+        throw new Error('保存设置失败');
+      }
+
+      const sectionName = section === 'blog' ? '博客' : section === 'qa' ? '问答' : '方案';
+      setMessage(`${sectionName}设置保存成功！`);
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('保存设置失败:', error);
@@ -361,7 +388,7 @@ export default function PublishSettingsPage() {
               <button
                 onClick={() => handleSaveSection('blog')}
                 disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4"
               >
                 {saving ? '保存中...' : '保存博客设置'}
               </button>
@@ -436,7 +463,7 @@ export default function PublishSettingsPage() {
               <button
                 onClick={() => handleSaveSection('qa')}
                 disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4"
               >
                 {saving ? '保存中...' : '保存问答设置'}
               </button>
@@ -511,7 +538,7 @@ export default function PublishSettingsPage() {
               <button
                 onClick={() => handleSaveSection('cases')}
                 disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4"
               >
                 {saving ? '保存中...' : '保存方案设置'}
               </button>
