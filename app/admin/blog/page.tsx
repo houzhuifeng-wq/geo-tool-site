@@ -290,6 +290,33 @@ if (typeof window !== 'undefined') {
     localStorage.setItem('blog_daily_limit', JSON.stringify(dailyLimit));
   }, [dailyLimit]);
 
+  const handleSavePublishSettings = async () => {
+    try {
+      const response = await fetch('/api/admin/publish-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          section: 'blog',
+          dailyLimit,
+          scheduleEnabled,
+          scheduleTime,
+          randomEnabled
+        })
+      });
+
+      if (response.ok) {
+        alert('发布设置保存成功！');
+      } else {
+        alert('保存失败，请重试');
+      }
+    } catch (error) {
+      console.error('保存发布设置失败:', error);
+      alert('保存失败，请重试');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('adminLoggedIn');
     router.push('/admin');
@@ -797,6 +824,16 @@ if (typeof window !== 'undefined') {
                   className="w-full px-4 py-2 border border-gray-300 rounded-md"
                   placeholder="输入每日发布数量"
                 />
+              </div>
+              
+              {/* 保存发布设置按钮 */}
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={handleSavePublishSettings}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  💾 保存发布设置
+                </button>
               </div>
             </div>
             
