@@ -43,13 +43,13 @@ async function checkDuplicate(section: Section, title: string): Promise<boolean>
     let count = 0;
     switch (section) {
       case 'blog':
-        count = await prisma.blogs.count({ where: { title: { contains: title, mode: 'insensitive' } } });
+        count = await prisma.blog.count({ where: { title: { contains: title, mode: 'insensitive' } } });
         break;
       case 'qa':
-        count = await prisma.qas.count({ where: { title: { contains: title, mode: 'insensitive' } } });
+        count = await prisma.qa.count({ where: { title: { contains: title, mode: 'insensitive' } } });
         break;
       case 'cases':
-        count = await prisma.cases.count({ where: { title: { contains: title, mode: 'insensitive' } } });
+        count = await prisma.case.count({ where: { title: { contains: title, mode: 'insensitive' } } });
         break;
     }
     return count > 0;
@@ -107,13 +107,13 @@ export async function GET(request: Request) {
         let todayPublished = 0;
         switch (section) {
           case 'blog':
-            todayPublished = await prisma.blogs.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
+            todayPublished = await prisma.blog.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
             break;
           case 'qa':
-            todayPublished = await prisma.qas.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
+            todayPublished = await prisma.qa.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
             break;
           case 'cases':
-            todayPublished = await prisma.cases.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
+            todayPublished = await prisma.case.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
             break;
         }
 
@@ -145,13 +145,13 @@ export async function GET(request: Request) {
         if (isDuplicate) {
           switch (section) {
             case 'blog':
-              await prisma.blogs.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
+              await prisma.blog.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
               break;
             case 'qa':
-              await prisma.qas.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
+              await prisma.qa.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
               break;
             case 'cases':
-              await prisma.cases.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
+              await prisma.case.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
               break;
           }
           pendingCount = 1;
@@ -159,13 +159,13 @@ export async function GET(request: Request) {
         } else {
           switch (section) {
             case 'blog':
-              await prisma.blogs.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
+              await prisma.blog.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
               break;
             case 'qa':
-              await prisma.qas.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
+              await prisma.qa.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
               break;
             case 'cases':
-              await prisma.cases.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
+              await prisma.case.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
               break;
           }
           publishedCount = 1;
