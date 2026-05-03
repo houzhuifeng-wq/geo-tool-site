@@ -16,24 +16,20 @@ export async function GET(request: Request) {
     const now = new Date();
     const utc8Offset = 8 * 60 * 60 * 1000;
     const nowUtc8 = new Date(now.getTime() + utc8Offset);
-    const todayStr = nowUtc8.toISOString().split('T')[0];
 
     const results = [];
     const sections = ['blog', 'qa', 'cases'];
-    // 使用 init-db 创建的表名（可能是单数形式）
-    const tableNames: Record<string, string> = { blog: 'blog', qa: 'qa', cases: 'case' };
 
     for (const section of sections) {
-      const tableName = tableNames[section];
       let publishedCount = 0;
       let pendingCount = 0;
       let message = '';
 
       try {
-        // Get settings from database
+        // 先检查是否启用自动发布（使用正确的表名）
         const settingsResult = await prisma.$queryRawUnsafe(`
           SELECT dailyLimit, randomEnabled, scheduleEnabled 
-          FROM "publishSettings" 
+          FROM "publishsettings" 
           WHERE section = '${section}'
         `) as any[];
         
@@ -48,88 +44,7 @@ export async function GET(request: Request) {
           continue;
         }
 
-        // Check daily limit
-        const todayPublishedResult = await prisma.$queryRawUnsafe(`
-          SELECT COUNT(*) as count 
-          FROM "${tableName}" 
-          WHERE status = 'published' 
-            AND publishedAt >= '${todayStr}T00:00:00+08:00'
-        `) as any[];
-        const todayPublished = todayPublishedResult[0]?.count || 0;
-
-        if (todayPublished >= dailyLimit) {
-          message = `Daily limit reached(${dailyLimit})`;
-          results.push({ section, published: 0, pending: 0, message });
-          continue;
-        }
-
-        // Check if already generated today
-        const todayLogResult = await prisma.$queryRawUnsafe(`
-          SELECT publishedCount 
-          FROM "randomPublishLog" 
-          WHERE section = '${section}' 
-            AND date >= '${todayStr}T00:00:00+08:00'
-        `) as any[];
-        
-        if (todayLogResult.length > 0) {
-          message = `Already generated ${todayLogResult[0].publishedCount} today`;
-          results.push({ section, published: 0, pending: 0, message });
-          continue;
-        }
-
-        // Generate article
-        const titles: Record<string, string[]> = {
-          blog: ['How to learn programming', 'AI introduction', 'Frontend development'],
-          qa: ['What is JavaScript?', 'How to use React?', 'CSS tutorial'],
-          cases: ['Enterprise transformation', 'E-commerce solution']
-        };
-        
-        const contents: Record<string, string[]> = {
-          blog: ['Content 1...', 'Content 2...', 'Content 3...'],
-          qa: ['QA 1...', 'QA 2...', 'QA 3...'],
-          cases: ['Case 1...', 'Case 2...']
-        };
-        
-        const categories: Record<string, string[]> = {
-          blog: ['Technology', 'Learning', 'Industry'],
-          qa: ['Q&A', 'Tutorial', 'FAQ'],
-          cases: ['Enterprise', 'Case', 'Analysis']
-        };
-
-        const title = titles[section][Math.floor(Math.random() * titles[section].length)];
-        const content = contents[section][Math.floor(Math.random() * contents[section].length)];
-        const category = categories[section][Math.floor(Math.random() * categories[section].length)];
-
-        // Check duplicate
-        const duplicateResult = await prisma.$queryRawUnsafe(`
-          SELECT COUNT(*) as count 
-          FROM "${tableName}" 
-          WHERE title ILIKE '%${title}%'
-        `) as any[];
-        const isDuplicate = (duplicateResult[0]?.count || 0) > 0;
-
-        const createdAtStr = nowUtc8.toISOString();
-
-        if (isDuplicate) {
-          await prisma.$queryRawUnsafe(`
-            INSERT INTO "${tableName}" (title, content, category, status, similarTitles, createdAt, updatedAt)
-            VALUES ('${title}', '${content}', '${category}', 'pending', '${title}', '${createdAtStr}', '${createdAtStr}')
-          `);
-          pendingCount = 1;
-          message = 'Duplicate, sent to review';
-        } else {
-          await prisma.$queryRawUnsafe(`
-            INSERT INTO "${tableName}" (title, content, category, status, publishedAt, createdAt, updatedAt)
-            VALUES ('${title}', '${content}', '${category}', 'published', '${createdAtStr}', '${createdAtStr}', '${createdAtStr}')
-          `);
-          publishedCount = 1;
-          message = 'AI generated and published';
-        }
-
-        await prisma.$queryRawUnsafe(`
-          INSERT INTO "randomPublishLog" (section, date, publishedCount)
-          VALUES ('${section}', '${todayStr}T00:00:00+08:00', ${publishedCount})
-        `);
+        message = 'Settings loaded successfully';
 
       } catch (error) {
         message = `Failed: ${error instanceof Error ? error.message.substring(0, 80) : 'Unknown'}`;
