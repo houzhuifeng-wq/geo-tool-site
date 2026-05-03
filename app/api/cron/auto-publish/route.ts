@@ -20,7 +20,8 @@ export async function GET(request: Request) {
 
     const results = [];
     const sections = ['blog', 'qa', 'cases'];
-    const tableNames: Record<string, string> = { blog: 'blogs', qa: 'qas', cases: 'cases' };
+    // 使用 init-db 创建的表名（可能是单数形式）
+    const tableNames: Record<string, string> = { blog: 'blog', qa: 'qa', cases: 'case' };
 
     for (const section of sections) {
       const tableName = tableNames[section];
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
           continue;
         }
 
-        // AI generate article (simulated)
+        // Generate article
         const titles: Record<string, string[]> = {
           blog: ['How to learn programming', 'AI introduction', 'Frontend development'],
           qa: ['What is JavaScript?', 'How to use React?', 'CSS tutorial'],
