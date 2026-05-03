@@ -3,62 +3,6 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-type Section = 'blog' | 'qa' | 'cases';
-
-// AI generate article function
-async function generateArticle(section: Section): Promise<{ title: string; content: string; category: string } | null> {
-  try {
-    const titles: Record<Section, string[]> = {
-      blog: ['How to learn programming', 'AI introduction guide', 'Frontend development best practices'],
-      qa: ['What is JavaScript?', 'How to use React?', 'CSS animation tutorial'],
-      cases: ['Enterprise digital transformation', 'E-commerce platform solution', 'Cloud computing case']
-    };
-    
-    const contents: Record<Section, string[]> = {
-      blog: ['This is an article about programming...', 'AI is changing the world...', 'Frontend development skills...'],
-      qa: ['JavaScript is a scripting language...', 'React is a UI library...', 'CSS animations make webpages lively...'],
-      cases: ['Enterprise digital transformation success...', 'E-commerce architecture design...', 'Cloud computing benefits...']
-    };
-    
-    const categories: Record<Section, string[]> = {
-      blog: ['Technology', 'Learning', 'Industry'],
-      qa: ['Q&A', 'Tutorial', 'FAQ'],
-      cases: ['Enterprise', 'Case', 'Analysis']
-    };
-    
-    const title = titles[section][Math.floor(Math.random() * titles[section].length)];
-    const content = contents[section][Math.floor(Math.random() * contents[section].length)];
-    const category = categories[section][Math.floor(Math.random() * categories[section].length)];
-    
-    return { title, content, category };
-  } catch (error) {
-    console.error('AI generation failed:', error);
-    return null;
-  }
-}
-
-// Check duplicate title
-async function checkDuplicate(section: Section, title: string): Promise<boolean> {
-  try {
-    let count = 0;
-    switch (section) {
-      case 'blog':
-        count = await prisma.blog.count({ where: { title: { contains: title, mode: 'insensitive' } } });
-        break;
-      case 'qa':
-        count = await prisma.qa.count({ where: { title: { contains: title, mode: 'insensitive' } } });
-        break;
-      case 'cases':
-        count = await prisma.case.count({ where: { title: { contains: title, mode: 'insensitive' } } });
-        break;
-    }
-    return count > 0;
-  } catch (error) {
-    console.error('Duplicate check failed:', error);
-    return false;
-  }
-}
-
 export async function GET(request: Request) {
   try {
     const cronSecret = process.env.CRON_SECRET;
@@ -72,112 +16,122 @@ export async function GET(request: Request) {
     const now = new Date();
     const utc8Offset = 8 * 60 * 60 * 1000;
     const nowUtc8 = new Date(now.getTime() + utc8Offset);
-    const today = new Date(nowUtc8.toDateString());
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const publishSettings = await prisma.publishSettings.findMany();
-    
-    const settingsMap: Record<string, any> = {};
-    publishSettings.forEach(setting => {
-      settingsMap[setting.section] = setting;
-    });
-
-    const defaultSettings = {
-      blog: { strategy: 'manual', dailyLimit: 1, randomEnabled: false, scheduleEnabled: false },
-      qa: { strategy: 'manual', dailyLimit: 1, randomEnabled: false, scheduleEnabled: false },
-      cases: { strategy: 'manual', dailyLimit: 1, randomEnabled: false, scheduleEnabled: false }
-    };
+    const todayStr = nowUtc8.toISOString().split('T')[0];
 
     const results = [];
+    const sections = ['blog', 'qa', 'cases'];
+    const tableNames: Record<string, string> = { blog: 'blogs', qa: 'qas', cases: 'cases' };
 
-    for (const section of ['blog', 'qa', 'cases'] as Section[]) {
-      const settings = { ...defaultSettings[section], ...settingsMap[section] };
+    for (const section of sections) {
+      const tableName = tableNames[section];
       let publishedCount = 0;
       let pendingCount = 0;
       let message = '';
 
       try {
-        if (!settings.randomEnabled && !settings.scheduleEnabled) {
+        // Get settings from database
+        const settingsResult = await prisma.$queryRawUnsafe(`
+          SELECT dailyLimit, randomEnabled, scheduleEnabled 
+          FROM "publishSettings" 
+          WHERE section = '${section}'
+        `) as any[];
+        
+        const settings = settingsResult.length > 0 ? settingsResult[0] : null;
+        const dailyLimit = settings?.dailyLimit || 1;
+        const randomEnabled = settings?.randomEnabled || false;
+        const scheduleEnabled = settings?.scheduleEnabled || false;
+
+        if (!randomEnabled && !scheduleEnabled) {
           message = 'Auto publish not enabled';
           results.push({ section, published: 0, pending: 0, message });
           continue;
         }
 
-        let todayPublished = 0;
-        switch (section) {
-          case 'blog':
-            todayPublished = await prisma.blog.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
-            break;
-          case 'qa':
-            todayPublished = await prisma.qa.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
-            break;
-          case 'cases':
-            todayPublished = await prisma.case.count({ where: { status: 'published', publishedAt: { gte: today, lt: tomorrow } } });
-            break;
-        }
+        // Check daily limit
+        const todayPublishedResult = await prisma.$queryRawUnsafe(`
+          SELECT COUNT(*) as count 
+          FROM "${tableName}" 
+          WHERE status = 'published' 
+            AND publishedAt >= '${todayStr}T00:00:00+08:00'
+        `) as any[];
+        const todayPublished = todayPublishedResult[0]?.count || 0;
 
-        if (todayPublished >= settings.dailyLimit) {
-          message = `Daily limit reached(${settings.dailyLimit})`;
+        if (todayPublished >= dailyLimit) {
+          message = `Daily limit reached(${dailyLimit})`;
           results.push({ section, published: 0, pending: 0, message });
           continue;
         }
 
-        const todayLog = await prisma.randomPublishLog.findFirst({
-          where: { section, date: { gte: today, lt: tomorrow } }
-        });
-
-        if (todayLog) {
-          message = `Already generated ${todayLog.publishedCount} today`;
+        // Check if already generated today
+        const todayLogResult = await prisma.$queryRawUnsafe(`
+          SELECT publishedCount 
+          FROM "randomPublishLog" 
+          WHERE section = '${section}' 
+            AND date >= '${todayStr}T00:00:00+08:00'
+        `) as any[];
+        
+        if (todayLogResult.length > 0) {
+          message = `Already generated ${todayLogResult[0].publishedCount} today`;
           results.push({ section, published: 0, pending: 0, message });
           continue;
         }
 
-        const article = await generateArticle(section);
-        if (!article) {
-          message = 'AI generation failed';
-          results.push({ section, published: 0, pending: 0, message });
-          continue;
-        }
+        // AI generate article (simulated)
+        const titles: Record<string, string[]> = {
+          blog: ['How to learn programming', 'AI introduction', 'Frontend development'],
+          qa: ['What is JavaScript?', 'How to use React?', 'CSS tutorial'],
+          cases: ['Enterprise transformation', 'E-commerce solution']
+        };
+        
+        const contents: Record<string, string[]> = {
+          blog: ['Content 1...', 'Content 2...', 'Content 3...'],
+          qa: ['QA 1...', 'QA 2...', 'QA 3...'],
+          cases: ['Case 1...', 'Case 2...']
+        };
+        
+        const categories: Record<string, string[]> = {
+          blog: ['Technology', 'Learning', 'Industry'],
+          qa: ['Q&A', 'Tutorial', 'FAQ'],
+          cases: ['Enterprise', 'Case', 'Analysis']
+        };
 
-        const isDuplicate = await checkDuplicate(section, article.title);
+        const title = titles[section][Math.floor(Math.random() * titles[section].length)];
+        const content = contents[section][Math.floor(Math.random() * contents[section].length)];
+        const category = categories[section][Math.floor(Math.random() * categories[section].length)];
+
+        // Check duplicate
+        const duplicateResult = await prisma.$queryRawUnsafe(`
+          SELECT COUNT(*) as count 
+          FROM "${tableName}" 
+          WHERE title ILIKE '%${title}%'
+        `) as any[];
+        const isDuplicate = (duplicateResult[0]?.count || 0) > 0;
+
+        const createdAtStr = nowUtc8.toISOString();
 
         if (isDuplicate) {
-          switch (section) {
-            case 'blog':
-              await prisma.blog.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
-              break;
-            case 'qa':
-              await prisma.qa.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
-              break;
-            case 'cases':
-              await prisma.case.create({ data: { title: article.title, content: article.content, category: article.category, status: 'pending', similarTitles: article.title, createdAt: nowUtc8, updatedAt: nowUtc8 } });
-              break;
-          }
+          await prisma.$queryRawUnsafe(`
+            INSERT INTO "${tableName}" (title, content, category, status, similarTitles, createdAt, updatedAt)
+            VALUES ('${title}', '${content}', '${category}', 'pending', '${title}', '${createdAtStr}', '${createdAtStr}')
+          `);
           pendingCount = 1;
-          message = 'Duplicate detected, sent to review';
+          message = 'Duplicate, sent to review';
         } else {
-          switch (section) {
-            case 'blog':
-              await prisma.blog.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
-              break;
-            case 'qa':
-              await prisma.qa.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
-              break;
-            case 'cases':
-              await prisma.case.create({ data: { title: article.title, content: article.content, category: article.category, status: 'published', publishedAt: nowUtc8, createdAt: nowUtc8, updatedAt: nowUtc8 } });
-              break;
-          }
+          await prisma.$queryRawUnsafe(`
+            INSERT INTO "${tableName}" (title, content, category, status, publishedAt, createdAt, updatedAt)
+            VALUES ('${title}', '${content}', '${category}', 'published', '${createdAtStr}', '${createdAtStr}', '${createdAtStr}')
+          `);
           publishedCount = 1;
-          message = 'AI generated and published successfully';
+          message = 'AI generated and published';
         }
 
-        await prisma.randomPublishLog.create({
-          data: { section, date: today, publishedCount: publishedCount }
-        });
+        await prisma.$queryRawUnsafe(`
+          INSERT INTO "randomPublishLog" (section, date, publishedCount)
+          VALUES ('${section}', '${todayStr}T00:00:00+08:00', ${publishedCount})
+        `);
 
       } catch (error) {
-        message = `Failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        message = `Failed: ${error instanceof Error ? error.message.substring(0, 80) : 'Unknown'}`;
       }
 
       results.push({ section, published: publishedCount, pending: pendingCount, message });
