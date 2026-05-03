@@ -23,27 +23,23 @@ export async function GET(request: Request) {
 
     const results = [];
     
-    // 创建日期范围（今天 00:00:00 到明天 00:00:00）
+    // 创建日期范围
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    const todayStr = today.toISOString();
-    const tomorrowStr = tomorrow.toISOString();
-    
     for (const section of ['blog', 'qa', 'cases'] as Section[]) {
       const tableName = sectionToTable[section];
       
       try {
-        // 使用日期范围比较，不使用任何函数
-        const result = await prisma.$queryRawUnsafe(`
-          SELECT COUNT(*) as count 
-          FROM "${tableName}" 
-          WHERE status = 'published' 
-            AND publishedat >= '${todayStr}' 
-            AND publishedat < '${tomorrowStr}'
-        `) as any[];
+        // 使用参数化查询
+        const result = await prisma.$queryRawUnsafe(
+          `SELECT COUNT(*) as count FROM "${tableName}" WHERE status = $1 AND publishedat >= $2 AND publishedat < $3`,
+          'published',
+          today.toISOString(),
+          tomorrow.toISOString()
+        ) as any[];
         
         const count = result.length > 0 ? result[0].count : 0;
         
