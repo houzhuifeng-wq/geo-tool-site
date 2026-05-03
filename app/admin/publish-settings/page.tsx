@@ -358,13 +358,15 @@ export default function PublishSettingsPage() {
                 </div>
               </div>
 
-              <button
-                onClick={() => handleSaveSection('blog')}
-                disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-              >
-                {saving ? '保存中...' : '保存博客设置'}
-              </button>
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => handleSaveSection('blog')}
+                  disabled={saving}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg text-base font-semibold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  {saving ? '保存中...' : '💾 保存博客设置'}
+                </button>
+              </div>
             </div>
 
             {/* 问答设置 */}
@@ -433,13 +435,15 @@ export default function PublishSettingsPage() {
                 </div>
               </div>
 
-              <button
-                onClick={() => handleSaveSection('qa')}
-                disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-              >
-                {saving ? '保存中...' : '保存问答设置'}
-              </button>
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => handleSaveSection('qa')}
+                  disabled={saving}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg text-base font-semibold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  {saving ? '保存中...' : '💾 保存问答设置'}
+                </button>
+              </div>
             </div>
 
             {/* 方案设置 */}
@@ -508,13 +512,15 @@ export default function PublishSettingsPage() {
                 </div>
               </div>
 
-              <button
-                onClick={() => handleSaveSection('cases')}
-                disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-              >
-                {saving ? '保存中...' : '保存方案设置'}
-              </button>
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => handleSaveSection('cases')}
+                  disabled={saving}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg text-base font-semibold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  {saving ? '保存中...' : '💾 保存方案设置'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
