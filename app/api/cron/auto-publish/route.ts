@@ -28,11 +28,12 @@ export async function GET(request: Request) {
       const tableName = sectionToTable[section];
       
       try {
+        // 使用 PostgreSQL 正确的日期语法
         const result = await prisma.$queryRawUnsafe(`
           SELECT COUNT(*) as count 
           FROM "${tableName}" 
           WHERE status = 'published' 
-            AND DATE(publishedat) = $1
+            AND publishedat::date = $1::date
         `, today) as any[];
         
         const count = result.length > 0 ? result[0].count : 0;
@@ -40,7 +41,6 @@ export async function GET(request: Request) {
         results.push({ section, published: count, message: '查询成功' });
         
       } catch (error) {
-        // 添加详细错误信息
         results.push({ 
           section, 
           published: 0, 
