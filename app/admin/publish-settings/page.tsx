@@ -140,7 +140,34 @@ export default function PublishSettingsPage() {
         }
       }
 
-      setMessage('设置保存成功！');
+      setMessage('所有设置保存成功！');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('保存设置失败:', error);
+      setMessage('保存设置失败，请重试');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveSection = async (section: Section) => {
+    setSaving(true);
+    setMessage('');
+
+    try {
+      const response = await fetch('/api/admin/publish-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings[section])
+      });
+
+      if (!response.ok) {
+        throw new Error('保存设置失败');
+      }
+
+      setMessage(`${section === 'blog' ? '博客' : section === 'qa' ? '问答' : '方案'}设置保存成功！`);
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('保存设置失败:', error);
@@ -330,6 +357,14 @@ export default function PublishSettingsPage() {
                   </button>
                 </div>
               </div>
+
+              <button
+                onClick={() => handleSaveSection('blog')}
+                disabled={saving}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? '保存中...' : '保存博客设置'}
+              </button>
             </div>
 
             {/* 问答设置 */}
@@ -397,6 +432,14 @@ export default function PublishSettingsPage() {
                   </button>
                 </div>
               </div>
+
+              <button
+                onClick={() => handleSaveSection('qa')}
+                disabled={saving}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? '保存中...' : '保存问答设置'}
+              </button>
             </div>
 
             {/* 方案设置 */}
@@ -464,6 +507,14 @@ export default function PublishSettingsPage() {
                   </button>
                 </div>
               </div>
+
+              <button
+                onClick={() => handleSaveSection('cases')}
+                disabled={saving}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? '保存中...' : '保存方案设置'}
+              </button>
             </div>
           </div>
         </div>
