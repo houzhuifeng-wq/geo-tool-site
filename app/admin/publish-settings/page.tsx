@@ -177,33 +177,6 @@ export default function PublishSettingsPage() {
     }
   };
 
-  const handleSaveSection = async (section: Section) => {
-    setSaving(true);
-    setMessage('');
-
-    try {
-      const response = await fetch('/api/admin/publish-settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(settings[section])
-      });
-
-      if (!response.ok) {
-        throw new Error('保存设置失败');
-      }
-
-      setMessage(`${section === 'blog' ? '博客' : section === 'qa' ? '问答' : '方案'}设置保存成功！`);
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('保存设置失败:', error);
-      setMessage('保存设置失败，请重试');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('adminLoggedIn');
     router.push('/admin');
