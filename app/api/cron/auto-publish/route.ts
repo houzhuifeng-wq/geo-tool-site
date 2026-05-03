@@ -22,19 +22,28 @@ export async function GET(request: Request) {
     }
 
     const results = [];
-    const today = new Date().toISOString().split('T')[0];
+    
+    // 创建日期范围（今天 00:00:00 到明天 00:00:00）
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const todayStr = today.toISOString();
+    const tomorrowStr = tomorrow.toISOString();
     
     for (const section of ['blog', 'qa', 'cases'] as Section[]) {
       const tableName = sectionToTable[section];
       
       try {
-        // 使用 PostgreSQL 正确的日期语法
+        // 使用日期范围比较，不使用任何函数
         const result = await prisma.$queryRawUnsafe(`
           SELECT COUNT(*) as count 
           FROM "${tableName}" 
           WHERE status = 'published' 
-            AND publishedat::date = $1::date
-        `, today) as any[];
+            AND publishedat >= '${todayStr}' 
+            AND publishedat < '${tomorrowStr}'
+        `) as any[];
         
         const count = result.length > 0 ? result[0].count : 0;
         
