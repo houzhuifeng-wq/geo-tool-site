@@ -54,9 +54,9 @@ export default function PublishSettingsPage() {
       if (response.ok) {
         const data = await response.json();
         const newSettings: Record<Section, PublishSettings> = {
-          blog: { section: 'blog', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false },
-          qa: { section: 'qa', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false },
-          cases: { section: 'cases', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false }
+          blog: { section: 'blog', strategy: 'manual', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false },
+          qa: { section: 'qa', strategy: 'manual', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false },
+          cases: { section: 'cases', strategy: 'manual', dailyLimit: 1, scheduleEnabled: false, scheduleTime: '08:00', randomEnabled: false }
         };
         
         data.forEach((item: PublishSettingItem) => {
