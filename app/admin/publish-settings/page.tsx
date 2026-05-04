@@ -9,6 +9,7 @@ type Section = 'blog' | 'qa' | 'cases';
 // 发布设置类型
 interface PublishSettings {
   section: Section;
+  strategy: 'auto' | 'manual';
   dailyLimit: number;
   scheduleEnabled: boolean;
   scheduleTime: string;
