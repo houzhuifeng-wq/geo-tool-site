@@ -78,7 +78,9 @@ async function processSection(section: Section) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayPublished = await prisma[section].count({
+    // 根据 section 获取正确的 Prisma 模型名
+    const modelName = section === 'qa' ? 'qA' : section;
+    const todayPublished = await (prisma as any)[modelName].count({
       where: {
         status: 'published',
         publishedAt: {
@@ -94,7 +96,7 @@ async function processSection(section: Section) {
     }
 
     // 获取待发布的文章
-    const pendingArticles = await prisma[section].findMany({
+    const pendingArticles = await (prisma as any)[modelName].findMany({
       where: { status: 'pending' },
       orderBy: { createdAt: 'asc' },
       take: dailyLimit - todayPublished
@@ -121,7 +123,7 @@ async function processSection(section: Section) {
       publishTime.setHours(randomHour, randomMinute, 0, 0);
 
       // 更新文章状态为已发布
-      await prisma[section].update({
+      await (prisma as any)[modelName].update({
         where: { id: article.id },
         data: {
           status: 'published',
