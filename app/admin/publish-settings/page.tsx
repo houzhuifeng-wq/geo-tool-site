@@ -63,6 +63,7 @@ export default function PublishSettingsPage() {
           if (newSettings[item.section]) {
             newSettings[item.section] = {
               ...newSettings[item.section],
+              strategy: (item as any).strategy || 'manual',
               dailyLimit: item.dailyLimit || 1,
               scheduleEnabled: item.scheduleEnabled || false,
               scheduleTime: item.scheduleTime || '08:00',
