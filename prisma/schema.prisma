@@ -1,11 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: `https://pris.ly/d/prisma-schema`
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -16,28 +10,23 @@ datasource db {
 model PublishSettings {
   id              Int      @id @default(autoincrement())
   section         String   @unique
-  strategy        String
+  strategy        String   @default("manual")
   dailyLimit      Int      @default(1)
   scheduleEnabled Boolean  @default(false)
   scheduleTime    String   @default("08:00")
   randomEnabled   Boolean  @default(false)
-  randomTargetTime String?
-  randomTargetDate DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
-  @@map("publishsettings")
 }
 
 model RandomPublishLog {
-  id              Int      @id @default(autoincrement())
-  section         String
-  date            DateTime
-  publishedCount  Int
-  createdAt       DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  section        String
+  date           DateTime
+  publishedCount Int
+  createdAt      DateTime @default(now())
   
   @@unique([section, date])
-  @@map("randompublishlog")
 }
 
 model Blog {
@@ -56,7 +45,7 @@ model Blog {
   @@map("blogs")
 }
 
-model Qa {
+model QA {
   id              String   @id @default(cuid())
   title           String
   content         String
