@@ -274,6 +274,12 @@ export default function PublishSettingsPage() {
                 检测记录管理
               </a>
               <a
+                href="/admin/whitelist"
+                className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
+              >
+                网站白名单
+              </a>
+              <a
                 href="/admin/customer-messages"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
@@ -316,13 +322,79 @@ export default function PublishSettingsPage() {
         {/* 主内容 */}
         <div className="ml-64 flex-1 p-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h1 className="text-2xl font-bold text-gray-900">发布设置</h1>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+            {isWhitelistPage ? (
+              /* 白名单管理页面 */
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h1 className="text-2xl font-bold text-gray-900">网站白名单管理</h1>
+                </div>
+
+                {whitelistMessage && (
+                  <div className={`mb-4 p-3 rounded-md ${whitelistMessage.includes('成功') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {whitelistMessage}
+                  </div>
+                )}
+
+                <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">添加新域名</h2>
+                  <div className="flex space-x-4">
+                    <input
+                      type="text"
+                      value={newDomain}
+                      onChange={(e) => setNewDomain(e.target.value)}
+                      placeholder="例如: www.example.com"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md"
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddWhitelistDomain()}
+                    />
+                    <button
+                      onClick={handleAddWhitelistDomain}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium"
+                    >
+                      添加
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 border border-gray-200 rounded-md">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">白名单域名列表</h2>
+                  {whitelistDomains.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">暂无白名单域名</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {whitelistDomains.map((domain, index) => (
+                        <li key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                          <span className="text-gray-900">{domain}</span>
+                          <button
+                            onClick={() => handleRemoveWhitelistDomain(domain)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1 rounded-md text-sm font-medium"
+                          >
+                            删除
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="mt-6 p-4 border border-gray-200 rounded-md bg-blue-50">
+                  <h2 className="text-lg font-medium text-blue-900 mb-2">使用说明</h2>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• 白名单中的域名在GEO检测时会获得高分（85-95分）</li>
+                    <li>• 可以添加公司官网或客户成功案例作为展示</li>
+                    <li>• 域名格式：不需要 http:// 或 https://，直接输入域名即可</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              /* 发布设置页面 */
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h1 className="text-2xl font-bold text-gray-900">发布设置</h1>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                 {saving ? '保存中...' : '保存设置'}
               </button>
             </div>
@@ -563,10 +635,11 @@ export default function PublishSettingsPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
 
-            {/* 网站白名单管理 */}
-            <div className="mb-6 p-4 border border-gray-200 rounded-md">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">网站白名单管理</h2>
+      {/* 页脚 */}
               
               {whitelistMessage && (
                 <div className={`mb-4 p-3 rounded-md ${whitelistMessage.includes('成功') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
