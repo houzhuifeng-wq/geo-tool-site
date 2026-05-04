@@ -81,6 +81,12 @@ export default function CustomerMessagesPage() {
                 检测记录管理
               </a>
               <a
+                href="/admin/whitelist"
+                className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
+              >
+                网站白名单
+              </a>
+              <a
                 href="/admin/customer-messages"
                 className="bg-blue-50 text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
