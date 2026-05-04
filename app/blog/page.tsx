@@ -6,48 +6,63 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
-// 从localStorage加载博客数据
-const getBlogPosts = () => {
-  const savedPosts = localStorage.getItem('blogPosts');
-  if (savedPosts) {
-    return JSON.parse(savedPosts);
-  }
-  // 默认数据
-  return [
-    {
-      id: '1',
-      title: 'GEO优化基础入门：从0到1的完整指南',
-      excerpt: '本文将为您介绍GEO优化的基本概念、重要性以及实施步骤，帮助您快速入门GEO优化领域。',
-      date: '2024-04-01',
-      category: '基础教程',
-      content: 'GEO优化是一种针对地理位置的搜索引擎优化策略...'
-    },
-    {
-      id: '2',
-      title: '如何通过GEO优化提升本地搜索排名',
-      excerpt: '本地搜索排名对实体企业至关重要，本文将分享如何通过GEO优化策略提升本地搜索可见性。',
-      date: '2024-03-25',
-      category: '本地SEO',
-      content: '本地搜索排名是实体企业获取客户的重要途径...'
-    },
-    {
-      id: '3',
-      title: 'GEO优化中的关键词策略：如何选择和布局',
-      excerpt: '关键词是GEO优化的核心，本文将详细介绍如何选择适合的GEO关键词并进行合理布局。',
-      date: '2024-03-18',
-      category: '关键词策略',
-      content: '关键词选择是GEO优化的基础...'
-    },
-    {
-      id: '4',
-      title: '移动设备上的GEO优化：提升移动端用户体验',
-      excerpt: '移动搜索日益重要，本文将分享如何针对移动设备进行GEO优化，提升用户体验和排名。',
-      date: '2024-03-10',
-      category: '移动端优化',
-      content: '移动设备已经成为人们获取信息的主要方式...'
-    },
-    {
-      id: '5',
+interface BlogPost {
+  id: string;
+  title: string;
+  excerpt: string;
+  date: string;
+  category: string;
+  content: string;
+  publishedAt?: string;
+}
+
+// 从后端API获取博客数据
+const getBlogPosts = async (): Promise<BlogPost[]> => {
+  try {
+    const response = await fetch('/api/blog');
+    if (!response.ok) {
+      throw new Error('Failed to fetch blog posts');
+    }
+    const posts = await response.json();
+    return posts;
+  } catch (error) {
+    console.error('Error fetching blog posts:', error);
+    // 返回默认数据
+    return [
+      {
+        id: '1',
+        title: 'GEO优化基础入门：从0到1的完整指南',
+        excerpt: '本文将为您介绍GEO优化的基本概念、重要性以及实施步骤，帮助您快速入门GEO优化领域。',
+        date: '2024-04-01',
+        category: '基础教程',
+        content: 'GEO优化是一种针对地理位置的搜索引擎优化策略...'
+      },
+      {
+        id: '2',
+        title: '如何通过GEO优化提升本地搜索排名',
+        excerpt: '本地搜索排名对实体企业至关重要，本文将分享如何通过GEO优化策略提升本地搜索可见性。',
+        date: '2024-03-25',
+        category: '本地SEO',
+        content: '本地搜索排名是实体企业获取客户的重要途径...'
+      },
+      {
+        id: '3',
+        title: 'GEO优化中的关键词策略：如何选择和布局',
+        excerpt: '关键词是GEO优化的核心，本文将详细介绍如何选择适合的GEO关键词并进行合理布局。',
+        date: '2024-03-18',
+        category: '关键词策略',
+        content: '关键词选择是GEO优化的基础...'
+      },
+      {
+        id: '4',
+        title: '移动设备上的GEO优化：提升移动端用户体验',
+        excerpt: '移动搜索日益重要，本文将分享如何针对移动设备进行GEO优化，提升用户体验和排名。',
+        date: '2024-03-10',
+        category: '移动端优化',
+        content: '移动设备已经成为人们获取信息的主要方式...'
+      },
+      {
+        id: '5',
       title: 'GEO优化案例分析：如何将排名提升50位',
       excerpt: '通过真实案例分析，本文将展示我们如何帮助客户在3个月内将GEO相关关键词排名提升50位。',
       date: '2024-03-05',
