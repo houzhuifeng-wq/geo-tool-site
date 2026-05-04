@@ -588,16 +588,22 @@ if (typeof window !== 'undefined') {
                 检测记录管理
               </a>
               <a
+                href="/admin/whitelist"
+                className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
+              >
+                网站白名单
+              </a>
+              <a
                 href="/admin/customer-messages"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
                 客户留言管理
               </a>
               <a
-                href="/admin/blog"
+                href="/admin/publish-settings"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
-                博客管理
+                网站白名单
               </a>
               <a
                 href="/admin/cases"
