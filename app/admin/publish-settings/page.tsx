@@ -149,6 +149,47 @@ export default function PublishSettingsPage() {
     }
   };
 
+  // 白名单管理
+  const [whitelistDomains, setWhitelistDomains] = useState<string[]>([]);
+  const [newDomain, setNewDomain] = useState('');
+  const [whitelistMessage, setWhitelistMessage] = useState('');
+
+  useEffect(() => {
+    const savedDomains = localStorage.getItem('geoWhitelist');
+    if (savedDomains) {
+      setWhitelistDomains(JSON.parse(savedDomains));
+    } else {
+      const defaultDomains = ['www.your-site.com', 'your-success-site.com'];
+      setWhitelistDomains(defaultDomains);
+      localStorage.setItem('geoWhitelist', JSON.stringify(defaultDomains));
+    }
+  }, []);
+
+  const handleAddWhitelistDomain = () => {
+    if (!newDomain.trim()) {
+      setWhitelistMessage('请输入域名');
+      return;
+    }
+    if (whitelistDomains.includes(newDomain.trim())) {
+      setWhitelistMessage('域名已存在');
+      return;
+    }
+    const updatedDomains = [...whitelistDomains, newDomain.trim()];
+    setWhitelistDomains(updatedDomains);
+    localStorage.setItem('geoWhitelist', JSON.stringify(updatedDomains));
+    setNewDomain('');
+    setWhitelistMessage('域名添加成功！');
+    setTimeout(() => setWhitelistMessage(''), 3000);
+  };
+
+  const handleRemoveWhitelistDomain = (domain: string) => {
+    const updatedDomains = whitelistDomains.filter(d => d !== domain);
+    setWhitelistDomains(updatedDomains);
+    localStorage.setItem('geoWhitelist', JSON.stringify(updatedDomains));
+    setWhitelistMessage('域名已删除');
+    setTimeout(() => setWhitelistMessage(''), 3000);
+  };
+
   const handleSaveSection = async (section: Section) => {
     setSaving(true);
     setMessage('');
@@ -520,6 +561,64 @@ export default function PublishSettingsPage() {
                 >
                   {saving ? '保存中...' : '💾 保存方案设置'}
                 </button>
+              </div>
+            </div>
+
+            {/* 网站白名单管理 */}
+            <div className="mb-6 p-4 border border-gray-200 rounded-md">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">网站白名单管理</h2>
+              
+              {whitelistMessage && (
+                <div className={`mb-4 p-3 rounded-md ${whitelistMessage.includes('成功') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {whitelistMessage}
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">添加域名</label>
+                <div className="flex space-x-4">
+                  <input
+                    type="text"
+                    value={newDomain}
+                    onChange={(e) => setNewDomain(e.target.value)}
+                    placeholder="例如: www.example.com"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md"
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddWhitelistDomain()}
+                  />
+                  <button
+                    onClick={handleAddWhitelistDomain}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium"
+                  >
+                    添加
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">白名单域名列表</label>
+                {whitelistDomains.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">暂无白名单域名</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {whitelistDomains.map((domain, index) => (
+                      <li key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                        <span className="text-gray-900">{domain}</span>
+                        <button
+                          onClick={() => handleRemoveWhitelistDomain(domain)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1 rounded-md text-sm font-medium"
+                        >
+                          删除
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="mt-4 p-3 bg-blue-50 rounded-md">
+                <p className="text-sm text-blue-700">
+                  <strong>说明：</strong>白名单中的域名在GEO检测时会获得高分（85-95分），可用于展示成功案例。
+                </p>
               </div>
             </div>
           </div>
