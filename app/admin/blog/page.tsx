@@ -590,10 +590,10 @@ if (typeof window !== 'undefined') {
                 博客管理
               </a>
               <a
-                href="/admin/publish-settings"
+                href="/admin/cases"
                 className="text-gray-700 hover:bg-blue-50 hover:text-blue-700 group flex items-center px-2 py-2 text-base font-medium rounded-md"
               >
-                网站白名单
+                方案管理
               </a>
               <a
                 href="/admin/qa"
